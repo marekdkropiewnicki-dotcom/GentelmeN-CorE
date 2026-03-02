@@ -3,7 +3,6 @@ import ccxt
 import os
 from groq import Groq
 
-# System sam pobierze ukryte klucze z serwera Railway
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GROQ_KEY = os.environ.get("GROQ_KEY")
 
@@ -43,7 +42,7 @@ def ai_chat(m):
                 {"role": "system", "content": "Jesteś inteligentnym asystentem o nazwie GentelmeN@CorE."},
                 {"role": "user", "content": m.text}
             ],
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
         )
         bot.reply_to(m, completion.choices[0].message.content)
     except Exception as e:
