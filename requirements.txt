@@ -2,3 +2,4 @@ pyTelegramBotAPI
 requests
 groq
 ccxt
+psycopg2-binary
