@@ -91,10 +91,10 @@ def search_brave(query):
 # --- MAGIA WYSYŁANIA (INTELIGENCJA PRZESTRZENNA) ---
 def inteligentna_odpowiedz(chat_id, text, thread_id):
     if thread_id:
-        # Jeśli jesteśmy w wątku, odpowiada w wątku
+        # Jeśli jesteśmy w wątku (np. "a co oferujesz"), odpowiada w wątku
         bot.send_message(chat_id, text, message_thread_id=thread_id)
     else:
-        # Jeśli jesteśmy w głównym oknie, wysyła czystą wiadomość bez wymuszania wątków
+        # Jeśli jesteśmy w głównym oknie, wysyła czystą wiadomość bez wątków
         bot.send_message(chat_id, text)
 
 # --- KOMENDY ---
