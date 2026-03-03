@@ -21,8 +21,8 @@ kucoin = ccxt.kucoin({
 })
 
 user_history = {}
-user_prefs = {} # Tu trzymamy język
-user_models = {} # Tu trzymamy wybrany model AI
+user_prefs = {} 
+user_models = {} 
 MAX_HISTORY = 6
 
 def init_db():
@@ -68,10 +68,8 @@ def update_user_db(user_id, username, lang=None, model=None):
     current_lang, current_model = get_user_data(user_id)
     new_lang = lang if lang else current_lang
     new_model = model if model else current_model
-    
     user_prefs[user_id] = new_lang
     user_models[user_id] = new_model
-    
     if not DB_URL: return
     try:
         conn = psycopg2.connect(DB_URL)
@@ -108,7 +106,7 @@ def inteligentna_odpowiedz(chat_id, text, thread_id):
 def welcome(m):
     update_user_db(m.from_user.id, m.from_user.username, lang='EN', model='llama-3.3-70b-versatile')
     user_history[m.from_user.id] = []
-    inteligentna_odpowiedz(m.chat.id, "Welcome to GentelmeN@CorE!\n/en | /pl - Language\n/llama | /fast | /qwen - AI Brain", m.message_thread_id)
+    inteligentna_odpowiedz(m.chat.id, "Welcome to GentelmeN@CorE!\n/en | /pl - Language\n/llama | /fast | /qwen - AI Brain\n/balance - KuCoin", m.message_thread_id)
 
 @bot.message_handler(commands=['en', 'pl'])
 def change_language(m):
@@ -120,14 +118,29 @@ def change_language(m):
 @bot.message_handler(commands=['llama', 'fast', 'qwen'])
 def change_model(m):
     cmd = m.text.lower()
-    model_map = {
-        '/llama': 'llama-3.3-70b-versatile',
-        '/fast': 'llama-3.1-8b-instant',
-        '/qwen': 'qwen-2.5-32b'
-    }
+    model_map = {'/llama': 'llama-3.3-70b-versatile', '/fast': 'llama-3.1-8b-instant', '/qwen': 'qwen-2.5-32b'}
     selected_model = model_map.get(cmd, 'llama-3.3-70b-versatile')
     update_user_db(m.from_user.id, m.from_user.username, model=selected_model)
     inteligentna_odpowiedz(m.chat.id, f"🚀 Brain switched to: {selected_model}", m.message_thread_id)
+
+# ----------------- PRZYWRÓCONY KUCOIN -----------------
+@bot.message_handler(commands=['balance'])
+def check_balance(m):
+    # TUTAJ JEST TWOJA BLOKADA BEZPIECZEŃSTWA:
+    if m.from_user.username != "GentelmeN_CorE":
+        inteligentna_odpowiedz(m.chat.id, f"🚫 Brak dostępu. Twój username to: {m.from_user.username}. Zmień kod na GitHubie, jeśli to Ty!", m.message_thread_id)
+        return
+        
+    inteligentna_odpowiedz(m.chat.id, "🔄 Łączę się z KuCoin...", m.message_thread_id)
+    try:
+        balance = kucoin.fetch_balance()
+        text = "💰 Saldo KuCoin:\n"
+        for asset, amount in balance['total'].items():
+            if amount > 0: text += f"- {asset}: {amount}\n"
+        inteligentna_odpowiedz(m.chat.id, text if len(text) > 18 else "Brak środków.", m.message_thread_id)
+    except Exception as e:
+        inteligentna_odpowiedz(m.chat.id, f"❌ Błąd KuCoin: {str(e)}", m.message_thread_id)
+# ------------------------------------------------------
 
 @bot.message_handler(content_types=['voice'])
 def handle_voice(m):
@@ -135,13 +148,9 @@ def handle_voice(m):
         file_info = bot.get_file(m.voice.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         file_name = f"voice_{m.chat.id}.ogg"
-        with open(file_name, 'wb') as new_file:
-            new_file.write(downloaded_file)
+        with open(file_name, 'wb') as new_file: new_file.write(downloaded_file)
         with open(file_name, "rb") as audio_file:
-            transcription = groq_client.audio.transcriptions.create(
-                file=(file_name, audio_file.read()),
-                model="whisper-large-v3",
-            )
+            transcription = groq_client.audio.transcriptions.create(file=(file_name, audio_file.read()), model="whisper-large-v3")
         user_text = transcription.text
         os.remove(file_name)
         inteligentna_odpowiedz(m.chat.id, f"🎙️ *Usłyszałem:* {user_text}", m.message_thread_id)
@@ -154,7 +163,6 @@ def handle_voice(m):
 def ai_chat(m):
     user_id = m.from_user.id
     user_lang, user_model = get_user_data(user_id)
-    
     if user_lang == 'EN':
         sys_msg = "You are GentelmeN@CorE, a sovereign digital entity. Speak ONLY English. Never apologize."
     else:
@@ -167,7 +175,6 @@ def ai_chat(m):
 
     if user_id not in user_history: user_history[user_id] = []
     user_history[user_id].append({"role": "user", "content": m.text})
-    
     messages = [{"role": "system", "content": sys_msg}] + user_history[user_id]
 
     try:
@@ -179,6 +186,6 @@ def ai_chat(m):
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"Error: {str(e)}", m.message_thread_id)
 
-print("Czekam 10 sekund...")
+print("Czekam 10 sekund na zamknięcie starych procesów Railway...")
 time.sleep(10)
 bot.infinity_polling()
