@@ -123,6 +123,40 @@ def check_balance(m):
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"Error: {str(e)}", m.message_thread_id)
 
+# ----------------- NOWA FUNKCJA: NASŁUCHIWANIE GŁOSU -----------------
+@bot.message_handler(content_types=['voice'])
+def handle_voice(m):
+    try:
+        # Zapisujemy plik audio z Telegrama
+        file_info = bot.get_file(m.voice.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        
+        file_name = f"voice_{m.chat.id}.ogg"
+        with open(file_name, 'wb') as new_file:
+            new_file.write(downloaded_file)
+            
+        # Wysyłamy do Groq (Whisper) w celu transkrypcji
+        with open(file_name, "rb") as audio_file:
+            transcription = groq_client.audio.transcriptions.create(
+                file=(file_name, audio_file.read()),
+                model="whisper-large-v3",
+            )
+            
+        user_text = transcription.text
+        os.remove(file_name) # Sprzątamy plik z serwera po transkrypcji
+        
+        # Opcjonalnie: potwierdzamy co bot usłyszał
+        inteligentna_odpowiedz(m.chat.id, f"🎙️ *Usłyszałem:* {user_text}", m.message_thread_id)
+        
+        # Przekazujemy rozkodowany tekst bezpośrednio do mózgu LLM
+        m.text = user_text
+        ai_chat(m)
+        
+    except Exception as e:
+        inteligentna_odpowiedz(m.chat.id, f"Błąd przetwarzania głosu: {str(e)}", m.message_thread_id)
+
+# ---------------------------------------------------------------------
+
 @bot.message_handler(func=lambda m: True)
 def ai_chat(m):
     user_id = m.from_user.id
