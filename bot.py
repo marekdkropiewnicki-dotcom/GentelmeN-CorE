@@ -5,7 +5,6 @@ import requests
 import psycopg2
 from groq import Groq
 
-# --- KONFIGURACJA Z RAILWAY ---
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GROQ_KEY = os.environ.get("GROQ_KEY")
 BRAVE_KEY = os.environ.get("BRAVE_API_KEY")
@@ -14,19 +13,16 @@ DB_URL = os.environ.get("DATABASE_URL")
 bot = telebot.TeleBot(TOKEN)
 groq_client = Groq(api_key=GROQ_KEY)
 
-# Konfiguracja Kucoin
 kucoin = ccxt.kucoin({
     'apiKey': os.environ.get("KUCOIN_API_KEY"),
     'secret': os.environ.get("KUCOIN_SECRET"),
     'password': os.environ.get("KUCOIN_PASSWORD"),
 })
 
-# --- PAMIĘĆ BOTA (RAM) ---
 user_history = {}
 user_prefs = {}
 MAX_HISTORY = 6
 
-# --- BAZA DANYCH ---
 def init_db():
     if not DB_URL: return
     try:
@@ -88,16 +84,12 @@ def search_brave(query):
         return "\n".join(results) if results else ""
     except: return ""
 
-# --- MAGIA WYSYŁANIA (INTELIGENCJA PRZESTRZENNA) ---
 def inteligentna_odpowiedz(chat_id, text, thread_id):
     if thread_id:
-        # Jeśli jesteśmy w wątku (np. "a co oferujesz"), odpowiada w wątku
         bot.send_message(chat_id, text, message_thread_id=thread_id)
     else:
-        # Jeśli jesteśmy w głównym oknie, wysyła czystą wiadomość bez wątków
         bot.send_message(chat_id, text)
 
-# --- KOMENDY ---
 @bot.message_handler(commands=['start'])
 def welcome(m):
     set_user_lang(m.from_user.id, m.from_user.username, 'PL')
@@ -130,7 +122,6 @@ def check_balance(m):
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"Error: {str(e)}", m.message_thread_id)
 
-# --- GŁÓWNY SILNIK AI ---
 @bot.message_handler(func=lambda m: True)
 def ai_chat(m):
     user_id = m.from_user.id
@@ -164,7 +155,6 @@ def ai_chat(m):
         if len(user_history[user_id]) > MAX_HISTORY:
             user_history[user_id] = user_history[user_id][-MAX_HISTORY:]
             
-        # Ostateczne rozwiązanie - bot wie, gdzie odpowiadać
         inteligentna_odpowiedz(m.chat.id, reply, m.message_thread_id)
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"Error: {str(e)}", m.message_thread_id)
