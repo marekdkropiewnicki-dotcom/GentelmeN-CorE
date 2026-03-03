@@ -99,6 +99,15 @@ def welcome(m):
     bot.reply_to(m, "Witaj w systemie GentelmeN@CorE! / Welcome to GentelmeN@CorE system!\n\nAby zmienić język na angielski wpisz: /lang EN\nTo change language to Polish type: /lang PL")
 
 @bot.message_handler(commands=['lang'])
+@bot.message_handler(commands=['debug_brave'])
+def test_search(m):
+    bot.reply_to(m, "Testuję połączenie z Brave Search API...")
+    if not BRAVE_KEY:
+        bot.reply_to(m, "❌ BŁĄD: Brak klucza BRAVE_API_KEY w Railway!")
+        return
+    
+    wynik = search_brave("aktualna cena bitcoin 2026")
+    bot.reply_to(m, f"🔍 Surowe dane z internetu:\n{wynik}")
 def change_language(m):
     text = m.text.upper()
     if "EN" in text:
