@@ -4,21 +4,27 @@ import os
 import requests
 import psycopg2
 import time
+import io
 from groq import Groq
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GROQ_KEY = os.environ.get("GROQ_KEY")
 BRAVE_KEY = os.environ.get("BRAVE_API_KEY")
 DB_URL = os.environ.get("DATABASE_URL")
+HF_TOKEN = os.environ.get("HF_TOKEN")
 
 bot = telebot.TeleBot(TOKEN)
 groq_client = Groq(api_key=GROQ_KEY)
 
-kucoin = ccxt.kucoin({
-    'apiKey': os.environ.get("KUCOIN_API_KEY"),
-    'secret': os.environ.get("KUCOIN_SECRET"),
-    'password': os.environ.get("KUCOIN_PASSWORD"),
-})
+# Inicjalizacja KuCoin (nie wywali błędu, jeśli klucze są puste, po prostu nie zadziała /balance)
+try:
+    kucoin = ccxt.kucoin({
+        'apiKey': os.environ.get("KUCOIN_API_KEY"),
+        'secret': os.environ.get("KUCOIN_SECRET"),
+        'password': os.environ.get("KUCOIN_PASSWORD"),
+    })
+except:
+    kucoin = None
 
 user_history = {}
 user_prefs = {} 
@@ -86,6 +92,7 @@ def update_user_db(user_id, username, lang=None, model=None):
     except: pass
 
 def search_brave(query):
+    if not BRAVE_KEY: return ""
     try:
         url = "https://api.search.brave.com/res/v1/web/search"
         headers = {"Accept": "application/json", "X-Subscription-Token": BRAVE_KEY}
@@ -97,16 +104,14 @@ def search_brave(query):
     except: return ""
 
 def inteligentna_odpowiedz(chat_id, text, thread_id):
-    if thread_id:
-        bot.send_message(chat_id, text, message_thread_id=thread_id)
-    else:
-        bot.send_message(chat_id, text)
+    if thread_id: bot.send_message(chat_id, text, message_thread_id=thread_id)
+    else: bot.send_message(chat_id, text)
 
 @bot.message_handler(commands=['start'])
 def welcome(m):
     update_user_db(m.from_user.id, m.from_user.username, lang='EN', model='llama-3.3-70b-versatile')
     user_history[m.from_user.id] = []
-    inteligentna_odpowiedz(m.chat.id, "Welcome to GentelmeN@CorE!\n/en | /pl - Language\n/llama | /fast | /qwen - AI Brain\n/balance - KuCoin", m.message_thread_id)
+    inteligentna_odpowiedz(m.chat.id, "Welcome to GentelmeN@CorE!\n/en | /pl - Language\n/llama | /fast | /qwen - AI Brain\n/balance - KuCoin\n/rysuj [opis] - Generator Obrazów", m.message_thread_id)
 
 @bot.message_handler(commands=['en', 'pl'])
 def change_language(m):
@@ -123,14 +128,18 @@ def change_model(m):
     update_user_db(m.from_user.id, m.from_user.username, model=selected_model)
     inteligentna_odpowiedz(m.chat.id, f"🚀 Brain switched to: {selected_model}", m.message_thread_id)
 
-# ----------------- PRZYWRÓCONY KUCOIN -----------------
+# ----------------- KUCOIN -----------------
 @bot.message_handler(commands=['balance'])
 def check_balance(m):
-    # TUTAJ JEST TWOJA BLOKADA BEZPIECZEŃSTWA:
-    if m.from_user.username != "GentelmeN_CorE":
-        inteligentna_odpowiedz(m.chat.id, f"🚫 Brak dostępu. Twój username to: {m.from_user.username}. Zmień kod na GitHubie, jeśli to Ty!", m.message_thread_id)
+    # Wpisz tu swój dokładny username z Telegrama (bez @)
+    if m.from_user.username != "QuanT":
+        inteligentna_odpowiedz(m.chat.id, f"🚫 Brak dostępu. Twój username to: {m.from_user.username}. Zmień kod na GitHubie!", m.message_thread_id)
         return
         
+    if not kucoin:
+        inteligentna_odpowiedz(m.chat.id, "❌ Błąd: Brak kluczy KuCoin w Railway.", m.message_thread_id)
+        return
+
     inteligentna_odpowiedz(m.chat.id, "🔄 Łączę się z KuCoin...", m.message_thread_id)
     try:
         balance = kucoin.fetch_balance()
@@ -140,8 +149,35 @@ def check_balance(m):
         inteligentna_odpowiedz(m.chat.id, text if len(text) > 18 else "Brak środków.", m.message_thread_id)
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"❌ Błąd KuCoin: {str(e)}", m.message_thread_id)
-# ------------------------------------------------------
 
+# ----------------- GENERATOR OBRAZÓW (HUGGING FACE) -----------------
+@bot.message_handler(commands=['rysuj'])
+def generate_image(m):
+    prompt = m.text.replace('/rysuj', '').strip()
+    if not prompt:
+        inteligentna_odpowiedz(m.chat.id, "🎨 Co mam narysować? Użyj komendy tak: /rysuj cyberpunkowy kot w neonowym mieście", m.message_thread_id)
+        return
+        
+    if not HF_TOKEN:
+        inteligentna_odpowiedz(m.chat.id, "❌ Błąd: Brak zmiennej HF_TOKEN w Railway.", m.message_thread_id)
+        return
+
+    inteligentna_odpowiedz(m.chat.id, f"🎨 Maluję: '{prompt}'... To zajmie kilkanaście sekund.", m.message_thread_id)
+    
+    API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    
+    try:
+        response = requests.post(API_URL, headers=headers, json={"inputs": prompt})
+        if response.status_code == 200:
+            image_bytes = io.BytesIO(response.content)
+            bot.send_photo(m.chat.id, image_bytes, reply_to_message_id=m.message_id)
+        else:
+            inteligentna_odpowiedz(m.chat.id, f"❌ Błąd serwera obrazów: {response.status_code}", m.message_thread_id)
+    except Exception as e:
+        inteligentna_odpowiedz(m.chat.id, f"❌ Wystąpił błąd: {str(e)}", m.message_thread_id)
+
+# ----------------- GŁOS I TEKST -----------------
 @bot.message_handler(content_types=['voice'])
 def handle_voice(m):
     try:
