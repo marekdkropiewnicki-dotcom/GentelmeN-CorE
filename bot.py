@@ -9,7 +9,7 @@ from groq import Groq
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GROQ_KEY = os.environ.get("GROQ_KEY")
 BRAVE_KEY = os.environ.get("BRAVE_API_KEY")
-DB_URL = os.environ.get("DATABASE_URL")  # Nowość: Link do Twojej bazy danych
+DB_URL = os.environ.get("DATABASE_URL")
 
 bot = telebot.TeleBot(TOKEN)
 groq_client = Groq(api_key=GROQ_KEY)
@@ -21,15 +21,17 @@ kucoin = ccxt.kucoin({
     'password': os.environ.get("KUCOIN_PASSWORD"),
 })
 
-# --- INICJALIZACJA BAZY DANYCH ---
+# --- PAMIĘĆ BOTA (HISTORIA CZATU) ---
+# Słownik przechowujący ostatnie wiadomości dla każdego użytkownika
+user_history = {}
+MAX_HISTORY = 6  # Pamięta 3 ostatnie Twoje pytania i 3 odpowiedzi bota
+
+# --- BAZA DANYCH ---
 def init_db():
-    if not DB_URL:
-        print("Brak DATABASE_URL. Baza nie działa.")
-        return
+    if not DB_URL: return
     try:
         conn = psycopg2.connect(DB_URL)
         cur = conn.cursor()
-        # Tworzymy tabelę użytkowników (jeśli jeszcze nie istnieje)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
@@ -41,12 +43,10 @@ def init_db():
         conn.commit()
         cur.close()
         conn.close()
-    except Exception as e:
-        print(f"Błąd bazy danych: {e}")
+    except: pass
 
-init_db()  # Uruchamiamy przy starcie bota
+init_db()
 
-# --- FUNKCJE BAZY DANYCH ---
 def get_user_lang(user_id):
     if not DB_URL: return 'PL'
     try:
@@ -57,15 +57,13 @@ def get_user_lang(user_id):
         cur.close()
         conn.close()
         return res[0] if res else 'PL'
-    except:
-        return 'PL'
+    except: return 'PL'
 
 def set_user_lang(user_id, username, lang):
     if not DB_URL: return
     try:
         conn = psycopg2.connect(DB_URL)
         cur = conn.cursor()
-        # Zapisz lub zaktualizuj użytkownika
         cur.execute("""
             INSERT INTO users (user_id, username, language) 
             VALUES (%s, %s, %s) 
@@ -75,8 +73,7 @@ def set_user_lang(user_id, username, lang):
         conn.commit()
         cur.close()
         conn.close()
-    except Exception as e:
-        print(f"Błąd zapisu: {e}")
+    except: pass
 
 def search_brave(query):
     try:
@@ -86,71 +83,88 @@ def search_brave(query):
         response = requests.get(url, headers=headers, params=params)
         data = response.json()
         results = [f"{r['title']}: {r['description']}" for r in data.get('web', {}).get('results', [])]
-        return "\n".join(results) if results else "Brak nowych danych."
-    except:
-        return ""
+        return "\n".join(results) if results else ""
+    except: return ""
 
-# --- OBSŁUGA KOMEND ---
-
+# --- KOMENDY ---
 @bot.message_handler(commands=['start'])
 def welcome(m):
-    # Domyślnie dodajemy nowego użytkownika do bazy z językiem PL
     set_user_lang(m.from_user.id, m.from_user.username, 'PL')
-    bot.reply_to(m, "Witaj w systemie GentelmeN@CorE! / Welcome to GentelmeN@CorE system!\n\nAby zmienić język na angielski wpisz: /lang EN\nTo change language to Polish type: /lang PL")
+    # Czyścimy historię przy starcie
+    user_history[m.from_user.id] = []
+    bot.reply_to(m, "Witaj w systemie GentelmeN@CorE! Zaktualizowano moduł pamięci.\nAby zmienić język: /lang EN lub /lang PL")
 
 @bot.message_handler(commands=['lang'])
-@bot.message_handler(commands=['debug_brave'])
-def test_search(m):
-    bot.reply_to(m, "Testuję połączenie z Brave Search API...")
-    if not BRAVE_KEY:
-        bot.reply_to(m, "❌ BŁĄD: Brak klucza BRAVE_API_KEY w Railway!")
-        return
-    
-    wynik = search_brave("aktualna cena bitcoin 2026")
-    bot.reply_to(m, f"🔍 Surowe dane z internetu:\n{wynik}")
 def change_language(m):
     text = m.text.upper()
     if "EN" in text:
         set_user_lang(m.from_user.id, m.from_user.username, 'EN')
-        bot.reply_to(m, "Language changed to English! 🇬🇧")
+        # Gdy zmieniamy język, czyścimy historię, żeby bot nie pomieszał kontekstów
+        user_history[m.from_user.id] = []
+        bot.reply_to(m, "Language strictly set to English! 🇬🇧 I will now ignore Polish inputs.")
     else:
         set_user_lang(m.from_user.id, m.from_user.username, 'PL')
-        bot.reply_to(m, "Język zmieniony na polski! 🇵🇱")
+        user_history[m.from_user.id] = []
+        bot.reply_to(m, "Język ustawiony na polski! 🇵🇱")
 
 @bot.message_handler(commands=['balance'])
 def check_balance(m):
-    # Prosta blokada - na razie tylko dla Ciebie (jako administratora)
     if m.from_user.username != "GentelmeN_CorE":
-        bot.reply_to(m, "Brak dostępu do portfela / Wallet access denied.")
+        bot.reply_to(m, "Brak dostępu / Access denied.")
         return
     try:
         balance = kucoin.fetch_balance()
         text = "💰 Saldo Kucoin:\n"
         for asset, amount in balance['total'].items():
             if amount > 0: text += f"- {asset}: {amount}\n"
-        bot.reply_to(m, text if len(text) > 18 else "Brak środków na koncie.")
+        bot.reply_to(m, text if len(text) > 18 else "Brak środków.")
     except Exception as e:
-        bot.reply_to(m, f"Błąd portfela / Wallet error: {str(e)}")
+        bot.reply_to(m, f"Error: {str(e)}")
 
+# --- GŁÓWNY SILNIK AI Z PAMIĘCIĄ ---
 @bot.message_handler(func=lambda m: True)
 def ai_chat(m):
+    user_id = m.from_user.id
+    user_lang = get_user_lang(user_id)
+    
+    # 1. Rygorystyczny System Prompt w zależności od języka
+    if user_lang == 'EN':
+        sys_msg = "You are GentelmeN@CorE, an advanced AI. Current date is March 2026. YOU MUST RESPOND STRICTLY AND ONLY IN ENGLISH. If the user speaks Polish or any other language, translate your thoughts and reply in English ONLY."
+    else:
+        sys_msg = "Jesteś GentelmeN@CorE, zaawansowaną AI. Mamy Marzec 2026. MUSISZ ODPOWIADAĆ TYLKO I WYŁĄCZNIE PO POLSKU, niezależnie od tego w jakim języku pisze użytkownik."
+    
+    # 2. Sprawdzanie internetu
+    web_info = ""
+    if any(word in m.text.lower() for word in ["cena", "news", "bitcoin", "krypto", "kurs", "price", "today", "ile", "co"]):
+        web_info = search_brave(m.text)
+        if web_info:
+            sys_msg += f"\nData from the web: {web_info}"
+
+    # 3. Zarządzanie Pamięcią Konwersacji
+    if user_id not in user_history:
+        user_history[user_id] = []
+        
+    # Dodajemy nowe pytanie użytkownika do historii
+    user_history[user_id].append({"role": "user", "content": m.text})
+    
+    # Budujemy pełny pakiet wiadomości: System + Historia
+    messages = [{"role": "system", "content": sys_msg}] + user_history[user_id]
+
     try:
-        # Pobieramy język użytkownika z bazy danych!
-        user_lang = get_user_lang(m.from_user.id)
-        
-        web_info = ""
-        if any(word in m.text.lower() for word in ["cena", "news", "bitcoin", "krypto", "kurs", "price", "today"]):
-            web_info = search_brave(m.text)
-        
-        # Instrukcja z uwzględnieniem wybranego języka
-        lang_instruction = "Respond in Polish." if user_lang == 'PL' else "Respond in English."
-        prompt = f"Jesteś GentelmeN@CorE. Mamy Marzec 2026. {lang_instruction} Użyj tych danych z sieci: {web_info}"
-        
         completion = groq_client.chat.completions.create(
-            messages=[{"role": "system", "content": prompt}, {"role": "user", "content": m.text}],
+            messages=messages,
             model="llama-3.1-8b-instant",
         )
-        bot.reply_to(m, completion.choices[0].message.content)
+        reply = completion.choices[0].message.content
+        
+        # Zapisujemy odpowiedź AI do historii
+        user_history[user_id].append({"role": "assistant", "content": reply})
+        
+        # Pilnujemy, żeby historia nie przekroczyła ustalonego limitu (MAX_HISTORY)
+        if len(user_history[user_id]) > MAX_HISTORY:
+            user_history[user_id] = user_history[user_id][-MAX_HISTORY:]
+            
+        bot.reply_to(m, reply)
     except Exception as e:
         bot.reply_to(m, f"Error: {str(e)}")
 
