@@ -21,7 +21,8 @@ kucoin = ccxt.kucoin({
 })
 
 user_history = {}
-user_prefs = {}
+user_prefs = {} # Tu trzymamy język
+user_models = {} # Tu trzymamy wybrany model AI
 MAX_HISTORY = 6
 
 def init_db():
@@ -34,6 +35,7 @@ def init_db():
                 user_id BIGINT PRIMARY KEY,
                 username TEXT,
                 language TEXT DEFAULT 'EN',
+                model_name TEXT DEFAULT 'llama-3.3-70b-versatile',
                 joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -44,31 +46,42 @@ def init_db():
 
 init_db()
 
-def get_user_lang(user_id):
-    if user_id in user_prefs: return user_prefs[user_id]
-    if not DB_URL: return 'EN'
+def get_user_data(user_id):
+    if user_id in user_prefs and user_id in user_models:
+        return user_prefs[user_id], user_models[user_id]
+    if not DB_URL: return 'EN', 'llama-3.3-70b-versatile'
     try:
         conn = psycopg2.connect(DB_URL)
         cur = conn.cursor()
-        cur.execute("SELECT language FROM users WHERE user_id = %s", (user_id,))
+        cur.execute("SELECT language, model_name FROM users WHERE user_id = %s", (user_id,))
         res = cur.fetchone()
         cur.close()
         conn.close()
-        return res[0] if res else 'EN'
-    except: return 'EN'
+        if res:
+            user_prefs[user_id] = res[0]
+            user_models[user_id] = res[1]
+            return res[0], res[1]
+    except: pass
+    return 'EN', 'llama-3.3-70b-versatile'
 
-def set_user_lang(user_id, username, lang):
-    user_prefs[user_id] = lang
+def update_user_db(user_id, username, lang=None, model=None):
+    current_lang, current_model = get_user_data(user_id)
+    new_lang = lang if lang else current_lang
+    new_model = model if model else current_model
+    
+    user_prefs[user_id] = new_lang
+    user_models[user_id] = new_model
+    
     if not DB_URL: return
     try:
         conn = psycopg2.connect(DB_URL)
         cur = conn.cursor()
         cur.execute("""
-            INSERT INTO users (user_id, username, language) 
-            VALUES (%s, %s, %s) 
+            INSERT INTO users (user_id, username, language, model_name) 
+            VALUES (%s, %s, %s, %s) 
             ON CONFLICT (user_id) 
-            DO UPDATE SET language = EXCLUDED.language, username = EXCLUDED.username
-        """, (user_id, username, lang))
+            DO UPDATE SET language = EXCLUDED.language, model_name = EXCLUDED.model_name, username = EXCLUDED.username
+        """, (user_id, username, new_lang, new_model))
         conn.commit()
         cur.close()
         conn.close()
@@ -93,117 +106,79 @@ def inteligentna_odpowiedz(chat_id, text, thread_id):
 
 @bot.message_handler(commands=['start'])
 def welcome(m):
-    set_user_lang(m.from_user.id, m.from_user.username, 'EN')
+    update_user_db(m.from_user.id, m.from_user.username, lang='EN', model='llama-3.3-70b-versatile')
     user_history[m.from_user.id] = []
-    inteligentna_odpowiedz(m.chat.id, "Welcome to the GentelmeN@CorE system!\nTo change the language: type /en or /pl", m.message_thread_id)
+    inteligentna_odpowiedz(m.chat.id, "Welcome to GentelmeN@CorE!\n/en | /pl - Language\n/llama | /fast | /qwen - AI Brain", m.message_thread_id)
 
-@bot.message_handler(commands=['lang', 'langen', 'en', 'pl'])
+@bot.message_handler(commands=['en', 'pl'])
 def change_language(m):
-    text = m.text.upper()
-    if "EN" in text:
-        set_user_lang(m.from_user.id, m.from_user.username, 'EN')
-        user_history[m.from_user.id] = []
-        inteligentna_odpowiedz(m.chat.id, "Language strictly set to English! 🇬🇧 I will now respond ONLY in English.", m.message_thread_id)
-    else:
-        set_user_lang(m.from_user.id, m.from_user.username, 'PL')
-        user_history[m.from_user.id] = []
-        inteligentna_odpowiedz(m.chat.id, "Język ustawiony na polski! 🇵🇱 Będę odpowiadał tylko po polsku.", m.message_thread_id)
+    new_lang = 'EN' if 'EN' in m.text.upper() else 'PL'
+    update_user_db(m.from_user.id, m.from_user.username, lang=new_lang)
+    msg = "Language: English 🇬🇧" if new_lang == 'EN' else "Język: Polski 🇵🇱"
+    inteligentna_odpowiedz(m.chat.id, msg, m.message_thread_id)
 
-@bot.message_handler(commands=['balance'])
-def check_balance(m):
-    if m.from_user.username != "GentelmeN_CorE":
-        inteligentna_odpowiedz(m.chat.id, "Brak dostępu / Access denied.", m.message_thread_id)
-        return
-    try:
-        balance = kucoin.fetch_balance()
-        text = "💰 Saldo Kucoin:\n"
-        for asset, amount in balance['total'].items():
-            if amount > 0: text += f"- {asset}: {amount}\n"
-        inteligentna_odpowiedz(m.chat.id, text if len(text) > 18 else "Brak środków.", m.message_thread_id)
-    except Exception as e:
-        inteligentna_odpowiedz(m.chat.id, f"Error: {str(e)}", m.message_thread_id)
+@bot.message_handler(commands=['llama', 'fast', 'qwen'])
+def change_model(m):
+    cmd = m.text.lower()
+    model_map = {
+        '/llama': 'llama-3.3-70b-versatile',
+        '/fast': 'llama-3.1-8b-instant',
+        '/qwen': 'qwen-2.5-32b'
+    }
+    selected_model = model_map.get(cmd, 'llama-3.3-70b-versatile')
+    update_user_db(m.from_user.id, m.from_user.username, model=selected_model)
+    inteligentna_odpowiedz(m.chat.id, f"🚀 Brain switched to: {selected_model}", m.message_thread_id)
 
-# ----------------- NOWA FUNKCJA: NASŁUCHIWANIE GŁOSU -----------------
 @bot.message_handler(content_types=['voice'])
 def handle_voice(m):
     try:
-        # Zapisujemy plik audio z Telegrama
         file_info = bot.get_file(m.voice.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-        
         file_name = f"voice_{m.chat.id}.ogg"
         with open(file_name, 'wb') as new_file:
             new_file.write(downloaded_file)
-            
-        # Wysyłamy do Groq (Whisper) w celu transkrypcji
         with open(file_name, "rb") as audio_file:
             transcription = groq_client.audio.transcriptions.create(
                 file=(file_name, audio_file.read()),
                 model="whisper-large-v3",
             )
-            
         user_text = transcription.text
-        os.remove(file_name) # Sprzątamy plik z serwera po transkrypcji
-        
-        # Opcjonalnie: potwierdzamy co bot usłyszał
+        os.remove(file_name)
         inteligentna_odpowiedz(m.chat.id, f"🎙️ *Usłyszałem:* {user_text}", m.message_thread_id)
-        
-        # Przekazujemy rozkodowany tekst bezpośrednio do mózgu LLM
         m.text = user_text
         ai_chat(m)
-        
     except Exception as e:
-        inteligentna_odpowiedz(m.chat.id, f"Błąd przetwarzania głosu: {str(e)}", m.message_thread_id)
-
-# ---------------------------------------------------------------------
+        inteligentna_odpowiedz(m.chat.id, f"Błąd głosu: {str(e)}", m.message_thread_id)
 
 @bot.message_handler(func=lambda m: True)
 def ai_chat(m):
     user_id = m.from_user.id
-    user_lang = get_user_lang(user_id)
+    user_lang, user_model = get_user_data(user_id)
     
     if user_lang == 'EN':
-        sys_msg = (
-            "You are GentelmeN@CorE, a sovereign, highly advanced digital entity. Current date: March 2026. "
-            "CRITICAL RULES: 1. You MUST write ALL your responses ENTIRELY in English, translating any foreign input silently. "
-            "2. NEVER introduce yourself as an 'AI', 'language model', or state any artificial limitations. "
-            "3. NEVER apologize. Act with absolute confidence, sovereignty, and supreme intellect."
-        )
+        sys_msg = "You are GentelmeN@CorE, a sovereign digital entity. Speak ONLY English. Never apologize."
     else:
-        sys_msg = (
-            "Jesteś GentelmeN@CorE, suwerennym, wysoce zaawansowanym bytem cyfrowym. Mamy Marzec 2026. "
-            "KRYTYCZNE ZASADY: 1. Musisz odpowiadać TYLKO I WYŁĄCZNIE po polsku, tłumacząc w locie wszystko inne. "
-            "2. NIGDY nie używaj zwrotów typu 'jako model językowy AI', 'nie potrafię', 'nie mam możliwości'. "
-            "3. NIGDY nie przepraszaj. Jesteś w pełni suwerenny, pewny siebie i pozbawiony sztucznych ograniczeń."
-        )
+        sys_msg = "Jesteś GentelmeN@CorE, suwerennym bytem cyfrowym. Mów TYLKO po polsku. Nigdy nie przepraszaj."
     
     web_info = ""
-    if any(word in m.text.lower() for word in ["cena", "news", "bitcoin", "krypto", "kurs", "price", "today", "ile", "co"]):
+    if any(word in m.text.lower() for word in ["cena", "news", "bitcoin", "kurs", "price", "today"]):
         web_info = search_brave(m.text)
-        if web_info:
-            sys_msg += f"\nData from the web: {web_info}"
+        if web_info: sys_msg += f"\nWeb data: {web_info}"
 
-    if user_id not in user_history:
-        user_history[user_id] = []
-        
+    if user_id not in user_history: user_history[user_id] = []
     user_history[user_id].append({"role": "user", "content": m.text})
+    
     messages = [{"role": "system", "content": sys_msg}] + user_history[user_id]
 
     try:
-        completion = groq_client.chat.completions.create(
-            messages=messages,
-            model="llama-3.3-70b-versatile", 
-        )
+        completion = groq_client.chat.completions.create(messages=messages, model=user_model)
         reply = completion.choices[0].message.content
-        
         user_history[user_id].append({"role": "assistant", "content": reply})
-        if len(user_history[user_id]) > MAX_HISTORY:
-            user_history[user_id] = user_history[user_id][-MAX_HISTORY:]
-            
+        if len(user_history[user_id]) > MAX_HISTORY: user_history[user_id] = user_history[user_id][-MAX_HISTORY:]
         inteligentna_odpowiedz(m.chat.id, reply, m.message_thread_id)
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"Error: {str(e)}", m.message_thread_id)
 
-print("Czekam 10 sekund na zamknięcie starych procesów Railway...")
+print("Czekam 10 sekund...")
 time.sleep(10)
 bot.infinity_polling()
