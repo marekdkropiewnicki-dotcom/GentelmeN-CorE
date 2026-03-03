@@ -14,6 +14,7 @@ DB_URL = os.environ.get("DATABASE_URL")
 bot = telebot.TeleBot(TOKEN)
 groq_client = Groq(api_key=GROQ_KEY)
 
+# Konfiguracja Kucoin
 kucoin = ccxt.kucoin({
     'apiKey': os.environ.get("KUCOIN_API_KEY"),
     'secret': os.environ.get("KUCOIN_SECRET"),
@@ -87,12 +88,21 @@ def search_brave(query):
         return "\n".join(results) if results else ""
     except: return ""
 
-# --- KOMENDY (Z BLOKADĄ POKOJÓW) ---
+# --- MAGIA WYSYŁANIA (INTELIGENCJA PRZESTRZENNA) ---
+def inteligentna_odpowiedz(chat_id, text, thread_id):
+    if thread_id:
+        # Jeśli jesteśmy w wątku, odpowiada w wątku
+        bot.send_message(chat_id, text, message_thread_id=thread_id)
+    else:
+        # Jeśli jesteśmy w głównym oknie, wysyła czystą wiadomość bez wymuszania wątków
+        bot.send_message(chat_id, text)
+
+# --- KOMENDY ---
 @bot.message_handler(commands=['start'])
 def welcome(m):
     set_user_lang(m.from_user.id, m.from_user.username, 'PL')
     user_history[m.from_user.id] = []
-    bot.send_message(m.chat.id, "Witaj w systemie GentelmeN@CorE!\nAby zmienić język: wpisz /en lub /pl", message_thread_id=m.message_thread_id)
+    inteligentna_odpowiedz(m.chat.id, "Witaj w systemie GentelmeN@CorE!\nAby zmienić język: wpisz /en lub /pl", m.message_thread_id)
 
 @bot.message_handler(commands=['lang', 'langen', 'en', 'pl'])
 def change_language(m):
@@ -100,27 +110,27 @@ def change_language(m):
     if "EN" in text:
         set_user_lang(m.from_user.id, m.from_user.username, 'EN')
         user_history[m.from_user.id] = []
-        bot.send_message(m.chat.id, "Language strictly set to English! 🇬🇧 I will now respond ONLY in English.", message_thread_id=m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, "Language strictly set to English! 🇬🇧 I will now respond ONLY in English.", m.message_thread_id)
     else:
         set_user_lang(m.from_user.id, m.from_user.username, 'PL')
         user_history[m.from_user.id] = []
-        bot.send_message(m.chat.id, "Język ustawiony na polski! 🇵🇱 Będę odpowiadał tylko po polsku.", message_thread_id=m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, "Język ustawiony na polski! 🇵🇱 Będę odpowiadał tylko po polsku.", m.message_thread_id)
 
 @bot.message_handler(commands=['balance'])
 def check_balance(m):
     if m.from_user.username != "GentelmeN_CorE":
-        bot.send_message(m.chat.id, "Brak dostępu / Access denied.", message_thread_id=m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, "Brak dostępu / Access denied.", m.message_thread_id)
         return
     try:
         balance = kucoin.fetch_balance()
         text = "💰 Saldo Kucoin:\n"
         for asset, amount in balance['total'].items():
             if amount > 0: text += f"- {asset}: {amount}\n"
-        bot.send_message(m.chat.id, text if len(text) > 18 else "Brak środków.", message_thread_id=m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, text if len(text) > 18 else "Brak środków.", m.message_thread_id)
     except Exception as e:
-        bot.send_message(m.chat.id, f"Error: {str(e)}", message_thread_id=m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, f"Error: {str(e)}", m.message_thread_id)
 
-# --- GŁÓWNY SILNIK AI (Z BLOKADĄ POKOJÓW) ---
+# --- GŁÓWNY SILNIK AI ---
 @bot.message_handler(func=lambda m: True)
 def ai_chat(m):
     user_id = m.from_user.id
@@ -154,8 +164,9 @@ def ai_chat(m):
         if len(user_history[user_id]) > MAX_HISTORY:
             user_history[user_id] = user_history[user_id][-MAX_HISTORY:]
             
-        bot.send_message(m.chat.id, reply, message_thread_id=m.message_thread_id)
+        # Ostateczne rozwiązanie - bot wie, gdzie odpowiadać
+        inteligentna_odpowiedz(m.chat.id, reply, m.message_thread_id)
     except Exception as e:
-        bot.send_message(m.chat.id, f"Error: {str(e)}", message_thread_id=m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, f"Error: {str(e)}", m.message_thread_id)
 
 bot.infinity_polling()
