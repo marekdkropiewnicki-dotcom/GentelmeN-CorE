@@ -3,7 +3,7 @@ import ccxt
 import os
 import requests
 import psycopg2
-import time  # DODANA BIBLIOTEKA CZASU
+import time
 from groq import Groq
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -33,7 +33,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
                 username TEXT,
-                language TEXT DEFAULT 'PL',
+                language TEXT DEFAULT 'EN',
                 joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -46,7 +46,7 @@ init_db()
 
 def get_user_lang(user_id):
     if user_id in user_prefs: return user_prefs[user_id]
-    if not DB_URL: return 'PL'
+    if not DB_URL: return 'EN'
     try:
         conn = psycopg2.connect(DB_URL)
         cur = conn.cursor()
@@ -54,8 +54,8 @@ def get_user_lang(user_id):
         res = cur.fetchone()
         cur.close()
         conn.close()
-        return res[0] if res else 'PL'
-    except: return 'PL'
+        return res[0] if res else 'EN'
+    except: return 'EN'
 
 def set_user_lang(user_id, username, lang):
     user_prefs[user_id] = lang
@@ -83,84 +83,3 @@ def search_brave(query):
         data = response.json()
         results = [f"{r['title']}: {r['description']}" for r in data.get('web', {}).get('results', [])]
         return "\n".join(results) if results else ""
-    except: return ""
-
-def inteligentna_odpowiedz(chat_id, text, thread_id):
-    if thread_id:
-        bot.send_message(chat_id, text, message_thread_id=thread_id)
-    else:
-        bot.send_message(chat_id, text)
-
-@bot.message_handler(commands=['start'])
-def welcome(m):
-    set_user_lang(m.from_user.id, m.from_user.username, 'PL')
-    user_history[m.from_user.id] = []
-    inteligentna_odpowiedz(m.chat.id, "Witaj w systemie GentelmeN@CorE!\nAby zmienić język: wpisz /en lub /pl", m.message_thread_id)
-
-@bot.message_handler(commands=['lang', 'langen', 'en', 'pl'])
-def change_language(m):
-    text = m.text.upper()
-    if "EN" in text:
-        set_user_lang(m.from_user.id, m.from_user.username, 'EN')
-        user_history[m.from_user.id] = []
-        inteligentna_odpowiedz(m.chat.id, "Language strictly set to English! 🇬🇧 I will now respond ONLY in English.", m.message_thread_id)
-    else:
-        set_user_lang(m.from_user.id, m.from_user.username, 'PL')
-        user_history[m.from_user.id] = []
-        inteligentna_odpowiedz(m.chat.id, "Język ustawiony na polski! 🇵🇱 Będę odpowiadał tylko po polsku.", m.message_thread_id)
-
-@bot.message_handler(commands=['balance'])
-def check_balance(m):
-    if m.from_user.username != "GentelmeN_CorE":
-        inteligentna_odpowiedz(m.chat.id, "Brak dostępu / Access denied.", m.message_thread_id)
-        return
-    try:
-        balance = kucoin.fetch_balance()
-        text = "💰 Saldo Kucoin:\n"
-        for asset, amount in balance['total'].items():
-            if amount > 0: text += f"- {asset}: {amount}\n"
-        inteligentna_odpowiedz(m.chat.id, text if len(text) > 18 else "Brak środków.", m.message_thread_id)
-    except Exception as e:
-        inteligentna_odpowiedz(m.chat.id, f"Error: {str(e)}", m.message_thread_id)
-
-@bot.message_handler(func=lambda m: True)
-def ai_chat(m):
-    user_id = m.from_user.id
-    user_lang = get_user_lang(user_id)
-    
-    if user_lang == 'EN':
-        sys_msg = "You are GentelmeN@CorE, an advanced AI. Current date: March 2026. CRITICAL RULE: You MUST write ALL your responses ENTIRELY in English. Even if the user asks a question in Polish, German or any other language, you MUST translate your answer and reply ONLY in English. Do not use any Polish words."
-    else:
-        sys_msg = "Jesteś GentelmeN@CorE, zaawansowaną AI. Mamy Marzec 2026. KRYTYCZNA ZASADA: Musisz odpowiadać TYLKO I WYŁĄCZNIE po polsku. Nawet jeśli użytkownik zada pytanie po angielsku, musisz odpowiedzieć po polsku."
-    
-    web_info = ""
-    if any(word in m.text.lower() for word in ["cena", "news", "bitcoin", "krypto", "kurs", "price", "today", "ile", "co"]):
-        web_info = search_brave(m.text)
-        if web_info:
-            sys_msg += f"\nData from the web: {web_info}"
-
-    if user_id not in user_history:
-        user_history[user_id] = []
-        
-    user_history[user_id].append({"role": "user", "content": m.text})
-    messages = [{"role": "system", "content": sys_msg}] + user_history[user_id]
-
-    try:
-        completion = groq_client.chat.completions.create(
-            messages=messages,
-            model="llama-3.3-70b-versatile", 
-        )
-        reply = completion.choices[0].message.content
-        
-        user_history[user_id].append({"role": "assistant", "content": reply})
-        if len(user_history[user_id]) > MAX_HISTORY:
-            user_history[user_id] = user_history[user_id][-MAX_HISTORY:]
-            
-        inteligentna_odpowiedz(m.chat.id, reply, m.message_thread_id)
-    except Exception as e:
-        inteligentna_odpowiedz(m.chat.id, f"Error: {str(e)}", m.message_thread_id)
-
-# --- HAMULEC NA DUCHY RAILWAY ---
-print("Czekam 10 sekund na zamknięcie starych procesów Railway...")
-time.sleep(10)
-bot.infinity_polling()
