@@ -130,7 +130,7 @@ def change_model(m):
 # ----------------- KUCOIN -----------------
 @bot.message_handler(commands=['balance'])
 def check_balance(m):
-    if m.from_user.username != "QuanT":
+    if m.from_user.username != "GentelmeN_CorE":
         inteligentna_odpowiedz(m.chat.id, f"🚫 Brak dostępu. Twój username to: {m.from_user.username}", m.message_thread_id)
         return
         
