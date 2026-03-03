@@ -23,7 +23,7 @@ kucoin = ccxt.kucoin({
 
 # --- PAMIĘĆ BOTA (RAM) ---
 user_history = {}
-user_prefs = {}  # NOWOŚĆ: Zapasowa pamięć języka w RAM!
+user_prefs = {}  # Zapasowa pamięć języka
 MAX_HISTORY = 6
 
 # --- BAZA DANYCH ---
@@ -48,11 +48,9 @@ def init_db():
 init_db()
 
 def get_user_lang(user_id):
-    # Najpierw sprawdzamy niezawodny RAM
     if user_id in user_prefs:
         return user_prefs[user_id]
     
-    # Jeśli nie ma w RAM, próbujemy z bazy
     if not DB_URL: return 'PL'
     try:
         conn = psycopg2.connect(DB_URL)
@@ -65,10 +63,8 @@ def get_user_lang(user_id):
     except: return 'PL'
 
 def set_user_lang(user_id, username, lang):
-    # ZAPIS DO NIEZAWODNEGO RAM-u
     user_prefs[user_id] = lang
     
-    # Próba zapisu do bazy w tle
     if not DB_URL: return
     try:
         conn = psycopg2.connect(DB_URL)
@@ -100,7 +96,8 @@ def search_brave(query):
 def welcome(m):
     set_user_lang(m.from_user.id, m.from_user.username, 'PL')
     user_history[m.from_user.id] = []
-    bot.reply_to(m, "Witaj w systemie GentelmeN@CorE!\nAby zmienić język: wpisz /en lub /pl")
+    # Zmiana z reply_to na send_message
+    bot.send_message(m.chat.id, "Witaj w systemie GentelmeN@CorE!\nAby zmienić język: wpisz /en lub /pl")
 
 @bot.message_handler(commands=['lang', 'langen', 'en', 'pl'])
 def change_language(m):
@@ -108,25 +105,25 @@ def change_language(m):
     if "EN" in text:
         set_user_lang(m.from_user.id, m.from_user.username, 'EN')
         user_history[m.from_user.id] = []
-        bot.reply_to(m, "Language strictly set to English! 🇬🇧 I will now respond ONLY in English.")
+        bot.send_message(m.chat.id, "Language strictly set to English! 🇬🇧 I will now respond ONLY in English.")
     else:
         set_user_lang(m.from_user.id, m.from_user.username, 'PL')
         user_history[m.from_user.id] = []
-        bot.reply_to(m, "Język ustawiony na polski! 🇵🇱 Będę odpowiadał tylko po polsku.")
+        bot.send_message(m.chat.id, "Język ustawiony na polski! 🇵🇱 Będę odpowiadał tylko po polsku.")
 
 @bot.message_handler(commands=['balance'])
 def check_balance(m):
     if m.from_user.username != "GentelmeN_CorE":
-        bot.reply_to(m, "Brak dostępu / Access denied.")
+        bot.send_message(m.chat.id, "Brak dostępu / Access denied.")
         return
     try:
         balance = kucoin.fetch_balance()
         text = "💰 Saldo Kucoin:\n"
         for asset, amount in balance['total'].items():
             if amount > 0: text += f"- {asset}: {amount}\n"
-        bot.reply_to(m, text if len(text) > 18 else "Brak środków.")
+        bot.send_message(m.chat.id, text if len(text) > 18 else "Brak środków.")
     except Exception as e:
-        bot.reply_to(m, f"Error: {str(e)}")
+        bot.send_message(m.chat.id, f"Error: {str(e)}")
 
 # --- GŁÓWNY SILNIK AI (LLAMA 3.3 70B) ---
 @bot.message_handler(func=lambda m: True)
@@ -162,8 +159,9 @@ def ai_chat(m):
         if len(user_history[user_id]) > MAX_HISTORY:
             user_history[user_id] = user_history[user_id][-MAX_HISTORY:]
             
-        bot.reply_to(m, reply)
+        # Zmiana: Bot wysyła zwykłą wiadomość zamiast cytować (tworzyć wątek)
+        bot.send_message(m.chat.id, reply)
     except Exception as e:
-        bot.reply_to(m, f"Error: {str(e)}")
+        bot.send_message(m.chat.id, f"Error: {str(e)}")
 
 bot.infinity_polling()
