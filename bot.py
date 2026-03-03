@@ -3,6 +3,7 @@ import ccxt
 import os
 import requests
 import psycopg2
+import time  # DODANA BIBLIOTEKA CZASU
 from groq import Groq
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -159,4 +160,7 @@ def ai_chat(m):
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"Error: {str(e)}", m.message_thread_id)
 
+# --- HAMULEC NA DUCHY RAILWAY ---
+print("Czekam 10 sekund na zamknięcie starych procesów Railway...")
+time.sleep(10)
 bot.infinity_polling()
