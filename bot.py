@@ -21,8 +21,9 @@ kucoin = ccxt.kucoin({
     'password': os.environ.get("KUCOIN_PASSWORD"),
 })
 
-# --- PAMIĘĆ BOTA (HISTORIA CZATU) ---
+# --- PAMIĘĆ BOTA (RAM) ---
 user_history = {}
+user_prefs = {}  # NOWOŚĆ: Zapasowa pamięć języka w RAM!
 MAX_HISTORY = 6
 
 # --- BAZA DANYCH ---
@@ -47,6 +48,11 @@ def init_db():
 init_db()
 
 def get_user_lang(user_id):
+    # Najpierw sprawdzamy niezawodny RAM
+    if user_id in user_prefs:
+        return user_prefs[user_id]
+    
+    # Jeśli nie ma w RAM, próbujemy z bazy
     if not DB_URL: return 'PL'
     try:
         conn = psycopg2.connect(DB_URL)
@@ -59,6 +65,10 @@ def get_user_lang(user_id):
     except: return 'PL'
 
 def set_user_lang(user_id, username, lang):
+    # ZAPIS DO NIEZAWODNEGO RAM-u
+    user_prefs[user_id] = lang
+    
+    # Próba zapisu do bazy w tle
     if not DB_URL: return
     try:
         conn = psycopg2.connect(DB_URL)
@@ -90,7 +100,7 @@ def search_brave(query):
 def welcome(m):
     set_user_lang(m.from_user.id, m.from_user.username, 'PL')
     user_history[m.from_user.id] = []
-    bot.reply_to(m, "Witaj w systemie GentelmeN@CorE! Zaktualizowano moduł pamięci i inteligencji.\nAby zmienić język: wpisz /en lub /pl")
+    bot.reply_to(m, "Witaj w systemie GentelmeN@CorE!\nAby zmienić język: wpisz /en lub /pl")
 
 @bot.message_handler(commands=['lang', 'langen', 'en', 'pl'])
 def change_language(m):
@@ -124,7 +134,6 @@ def ai_chat(m):
     user_id = m.from_user.id
     user_lang = get_user_lang(user_id)
     
-    # Żelazna zasada językowa
     if user_lang == 'EN':
         sys_msg = "You are GentelmeN@CorE, an advanced AI. Current date: March 2026. CRITICAL RULE: You MUST write ALL your responses ENTIRELY in English. Even if the user asks a question in Polish, German or any other language, you MUST translate your answer and reply ONLY in English. Do not use any Polish words."
     else:
