@@ -14,7 +14,6 @@ DB_URL = os.environ.get("DATABASE_URL")
 bot = telebot.TeleBot(TOKEN)
 groq_client = Groq(api_key=GROQ_KEY)
 
-# Konfiguracja Kucoin
 kucoin = ccxt.kucoin({
     'apiKey': os.environ.get("KUCOIN_API_KEY"),
     'secret': os.environ.get("KUCOIN_SECRET"),
@@ -23,7 +22,7 @@ kucoin = ccxt.kucoin({
 
 # --- PAMIĘĆ BOTA (RAM) ---
 user_history = {}
-user_prefs = {}  # Zapasowa pamięć języka
+user_prefs = {}
 MAX_HISTORY = 6
 
 # --- BAZA DANYCH ---
@@ -48,9 +47,7 @@ def init_db():
 init_db()
 
 def get_user_lang(user_id):
-    if user_id in user_prefs:
-        return user_prefs[user_id]
-    
+    if user_id in user_prefs: return user_prefs[user_id]
     if not DB_URL: return 'PL'
     try:
         conn = psycopg2.connect(DB_URL)
@@ -64,7 +61,6 @@ def get_user_lang(user_id):
 
 def set_user_lang(user_id, username, lang):
     user_prefs[user_id] = lang
-    
     if not DB_URL: return
     try:
         conn = psycopg2.connect(DB_URL)
@@ -91,13 +87,12 @@ def search_brave(query):
         return "\n".join(results) if results else ""
     except: return ""
 
-# --- KOMENDY ---
+# --- KOMENDY (Z BLOKADĄ POKOJÓW) ---
 @bot.message_handler(commands=['start'])
 def welcome(m):
     set_user_lang(m.from_user.id, m.from_user.username, 'PL')
     user_history[m.from_user.id] = []
-    # Zmiana z reply_to na send_message
-    bot.send_message(m.chat.id, "Witaj w systemie GentelmeN@CorE!\nAby zmienić język: wpisz /en lub /pl")
+    bot.send_message(m.chat.id, "Witaj w systemie GentelmeN@CorE!\nAby zmienić język: wpisz /en lub /pl", message_thread_id=m.message_thread_id)
 
 @bot.message_handler(commands=['lang', 'langen', 'en', 'pl'])
 def change_language(m):
@@ -105,27 +100,27 @@ def change_language(m):
     if "EN" in text:
         set_user_lang(m.from_user.id, m.from_user.username, 'EN')
         user_history[m.from_user.id] = []
-        bot.send_message(m.chat.id, "Language strictly set to English! 🇬🇧 I will now respond ONLY in English.")
+        bot.send_message(m.chat.id, "Language strictly set to English! 🇬🇧 I will now respond ONLY in English.", message_thread_id=m.message_thread_id)
     else:
         set_user_lang(m.from_user.id, m.from_user.username, 'PL')
         user_history[m.from_user.id] = []
-        bot.send_message(m.chat.id, "Język ustawiony na polski! 🇵🇱 Będę odpowiadał tylko po polsku.")
+        bot.send_message(m.chat.id, "Język ustawiony na polski! 🇵🇱 Będę odpowiadał tylko po polsku.", message_thread_id=m.message_thread_id)
 
 @bot.message_handler(commands=['balance'])
 def check_balance(m):
     if m.from_user.username != "GentelmeN_CorE":
-        bot.send_message(m.chat.id, "Brak dostępu / Access denied.")
+        bot.send_message(m.chat.id, "Brak dostępu / Access denied.", message_thread_id=m.message_thread_id)
         return
     try:
         balance = kucoin.fetch_balance()
         text = "💰 Saldo Kucoin:\n"
         for asset, amount in balance['total'].items():
             if amount > 0: text += f"- {asset}: {amount}\n"
-        bot.send_message(m.chat.id, text if len(text) > 18 else "Brak środków.")
+        bot.send_message(m.chat.id, text if len(text) > 18 else "Brak środków.", message_thread_id=m.message_thread_id)
     except Exception as e:
-        bot.send_message(m.chat.id, f"Error: {str(e)}")
+        bot.send_message(m.chat.id, f"Error: {str(e)}", message_thread_id=m.message_thread_id)
 
-# --- GŁÓWNY SILNIK AI (LLAMA 3.3 70B) ---
+# --- GŁÓWNY SILNIK AI (Z BLOKADĄ POKOJÓW) ---
 @bot.message_handler(func=lambda m: True)
 def ai_chat(m):
     user_id = m.from_user.id
@@ -159,9 +154,8 @@ def ai_chat(m):
         if len(user_history[user_id]) > MAX_HISTORY:
             user_history[user_id] = user_history[user_id][-MAX_HISTORY:]
             
-        # Zmiana: Bot wysyła zwykłą wiadomość zamiast cytować (tworzyć wątek)
-        bot.send_message(m.chat.id, reply)
+        bot.send_message(m.chat.id, reply, message_thread_id=m.message_thread_id)
     except Exception as e:
-        bot.send_message(m.chat.id, f"Error: {str(e)}")
+        bot.send_message(m.chat.id, f"Error: {str(e)}", message_thread_id=m.message_thread_id)
 
 bot.infinity_polling()
