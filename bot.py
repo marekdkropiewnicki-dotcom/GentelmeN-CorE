@@ -124,7 +124,7 @@ def ai_chat(m):
     user_id = m.from_user.id
     user_lang = get_user_lang(user_id)
     
-    # Żelazna zasada językowa dla potężnego modelu
+    # Żelazna zasada językowa
     if user_lang == 'EN':
         sys_msg = "You are GentelmeN@CorE, an advanced AI. Current date: March 2026. CRITICAL RULE: You MUST write ALL your responses ENTIRELY in English. Even if the user asks a question in Polish, German or any other language, you MUST translate your answer and reply ONLY in English. Do not use any Polish words."
     else:
