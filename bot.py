@@ -16,7 +16,6 @@ HF_TOKEN = os.environ.get("HF_TOKEN")
 bot = telebot.TeleBot(TOKEN)
 groq_client = Groq(api_key=GROQ_KEY)
 
-# Inicjalizacja KuCoin (nie wywali błędu, jeśli klucze są puste, po prostu nie zadziała /balance)
 try:
     kucoin = ccxt.kucoin({
         'apiKey': os.environ.get("KUCOIN_API_KEY"),
@@ -111,7 +110,7 @@ def inteligentna_odpowiedz(chat_id, text, thread_id):
 def welcome(m):
     update_user_db(m.from_user.id, m.from_user.username, lang='EN', model='llama-3.3-70b-versatile')
     user_history[m.from_user.id] = []
-    inteligentna_odpowiedz(m.chat.id, "Welcome to GentelmeN@CorE!\n/en | /pl - Language\n/llama | /fast | /qwen - AI Brain\n/balance - KuCoin\n/rysuj [opis] - Generator Obrazów", m.message_thread_id)
+    inteligentna_odpowiedz(m.chat.id, "Welcome to GentelmeN@CorE!\n/en | /pl - Language\n/llama | /fast | /qwen - AI Brain\n/balance - KuCoin\n/rysuj [opis] - Image Gen", m.message_thread_id)
 
 @bot.message_handler(commands=['en', 'pl'])
 def change_language(m):
@@ -131,9 +130,8 @@ def change_model(m):
 # ----------------- KUCOIN -----------------
 @bot.message_handler(commands=['balance'])
 def check_balance(m):
-    # Wpisz tu swój dokładny username z Telegrama (bez @)
     if m.from_user.username != "QuanT":
-        inteligentna_odpowiedz(m.chat.id, f"🚫 Brak dostępu. Twój username to: {m.from_user.username}. Zmień kod na GitHubie!", m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, f"🚫 Brak dostępu. Twój username to: {m.from_user.username}", m.message_thread_id)
         return
         
     if not kucoin:
@@ -150,19 +148,19 @@ def check_balance(m):
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"❌ Błąd KuCoin: {str(e)}", m.message_thread_id)
 
-# ----------------- GENERATOR OBRAZÓW (HUGGING FACE) -----------------
+# ----------------- HUGGING FACE (OBRAZY) -----------------
 @bot.message_handler(commands=['rysuj'])
 def generate_image(m):
     prompt = m.text.replace('/rysuj', '').strip()
     if not prompt:
-        inteligentna_odpowiedz(m.chat.id, "🎨 Co mam narysować? Użyj komendy tak: /rysuj cyberpunkowy kot w neonowym mieście", m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, "🎨 Co mam narysować? Użyj: /rysuj cyberpunkowy kot", m.message_thread_id)
         return
         
     if not HF_TOKEN:
-        inteligentna_odpowiedz(m.chat.id, "❌ Błąd: Brak zmiennej HF_TOKEN w Railway.", m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, "❌ Brak zmiennej HF_TOKEN w Railway.", m.message_thread_id)
         return
 
-    inteligentna_odpowiedz(m.chat.id, f"🎨 Maluję: '{prompt}'... To zajmie kilkanaście sekund.", m.message_thread_id)
+    inteligentna_odpowiedz(m.chat.id, f"🎨 Maluję: '{prompt}'... (10-20 sekund)", m.message_thread_id)
     
     API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
@@ -173,11 +171,10 @@ def generate_image(m):
             image_bytes = io.BytesIO(response.content)
             bot.send_photo(m.chat.id, image_bytes, reply_to_message_id=m.message_id)
         else:
-            inteligentna_odpowiedz(m.chat.id, f"❌ Błąd serwera obrazów: {response.status_code}", m.message_thread_id)
+            inteligentna_odpowiedz(m.chat.id, f"❌ Błąd serwera HF: {response.status_code}", m.message_thread_id)
     except Exception as e:
-        inteligentna_odpowiedz(m.chat.id, f"❌ Wystąpił błąd: {str(e)}", m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, f"❌ Błąd: {str(e)}", m.message_thread_id)
 
-# ----------------- GŁOS I TEKST -----------------
 @bot.message_handler(content_types=['voice'])
 def handle_voice(m):
     try:
