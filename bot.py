@@ -162,7 +162,7 @@ def generate_image(m):
 
     inteligentna_odpowiedz(m.chat.id, f"🎨 Maluję: '{prompt}'... (10-20 sekund)", m.message_thread_id)
     
-    API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+    API_URL = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     
     try:
@@ -171,7 +171,7 @@ def generate_image(m):
             image_bytes = io.BytesIO(response.content)
             bot.send_photo(m.chat.id, image_bytes, reply_to_message_id=m.message_id)
         else:
-            inteligentna_odpowiedz(m.chat.id, f"❌ Błąd serwera HF: {response.status_code}", m.message_thread_id)
+            inteligentna_odpowiedz(m.chat.id, f"❌ Błąd serwera HF: {response.status_code} - {response.text}", m.message_thread_id)
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"❌ Błąd: {str(e)}", m.message_thread_id)
 
