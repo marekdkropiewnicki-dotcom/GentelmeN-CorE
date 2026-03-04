@@ -166,7 +166,7 @@ def generate_image(m):
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     
     try:
-        response = requests.post(API_URL, headers=headers, json={"inputs": prompt})
+        response = requests.post(API_URL, headers=headers, json={"inputs": prompt}, timeout=60)
         if response.status_code == 200:
             image_bytes = io.BytesIO(response.content)
             bot.send_photo(m.chat.id, image_bytes, reply_to_message_id=m.message_id)
