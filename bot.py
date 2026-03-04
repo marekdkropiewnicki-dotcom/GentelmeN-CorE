@@ -1,4 +1,3 @@
-
 import telebot
 import ccxt
 import os
