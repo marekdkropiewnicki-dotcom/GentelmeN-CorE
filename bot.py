@@ -6,14 +6,9 @@ import psycopg2
 import time
 import io
 import random
-import logging
 from groq import Groq
 
-# --- KONFIGURACJA LOGOWANIA ---
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# --- KONFIGURACJA ŚRODOWISKA ---
+# --- KONFIGURACJA ZMIENNYCH ---
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GROQ_KEY = os.environ.get("GROQ_KEY")
 BRAVE_KEY = os.environ.get("BRAVE_API_KEY")
@@ -23,29 +18,25 @@ HF_TOKEN = os.environ.get("HF_TOKEN")
 bot = telebot.TeleBot(TOKEN)
 groq_client = Groq(api_key=GROQ_KEY)
 
-# --- INICJALIZACJA GIEŁDY KUCOIN ---
+# --- INICJALIZACJA KUCOIN ---
 try:
     kucoin = ccxt.kucoin({
         'apiKey': os.environ.get("KUCOIN_API_KEY"),
         'secret': os.environ.get("KUCOIN_SECRET"),
         'password': os.environ.get("KUCOIN_PASSWORD"),
     })
-    logger.info("Połączono z KuCoin.")
-except Exception as e:
+except:
     kucoin = None
-    logger.error(f"Błąd inicjalizacji KuCoin: {e}")
 
-# --- SESJE I HISTORIA ---
+# --- ZMIENNE SESJI I HISTORIA ---
 user_history = {}
 user_prefs = {} 
 user_models = {} 
 MAX_HISTORY = 6
 
-# --- LOGIKA BAZY DANYCH (POSTGRESQL) ---
+# --- BAZA DANYCH (POSTGRESQL) ---
 def init_db():
-    if not DB_URL: 
-        logger.warning("DATABASE_URL nie znaleziony.")
-        return
+    if not DB_URL: return
     try:
         conn = psycopg2.connect(DB_URL)
         cur = conn.cursor()
@@ -61,9 +52,7 @@ def init_db():
         conn.commit()
         cur.close()
         conn.close()
-        logger.info("Baza danych zainicjalizowana.")
-    except Exception as e:
-        logger.error(f"Błąd bazy danych (init): {e}")
+    except: pass
 
 init_db()
 
@@ -79,16 +68,18 @@ def get_user_data(user_id):
         cur.close()
         conn.close()
         if res:
-            user_prefs[user_id], user_models[user_id] = res[0], res[1]
+            user_prefs[user_id] = res[0]
+            user_models[user_id] = res[1]
             return res[0], res[1]
-    except Exception as e:
-        logger.error(f"Błąd pobierania danych użytkownika: {e}")
+    except: pass
     return 'EN', 'llama-3.3-70b-versatile'
 
 def update_user_db(user_id, username, lang=None, model=None):
-    l, m = get_user_data(user_id)
-    new_l, new_m = (lang or l), (model or m)
-    user_prefs[user_id], user_models[user_id] = new_l, new_m
+    current_lang, current_model = get_user_data(user_id)
+    new_lang = lang if lang else current_lang
+    new_model = model if model else current_model
+    user_prefs[user_id] = new_lang
+    user_models[user_id] = new_model
     if not DB_URL: return
     try:
         conn = psycopg2.connect(DB_URL)
@@ -100,138 +91,141 @@ def update_user_db(user_id, username, lang=None, model=None):
             DO UPDATE SET language = EXCLUDED.language, 
                           model_name = EXCLUDED.model_name, 
                           username = EXCLUDED.username
-        """, (user_id, username, new_l, new_m))
+        """, (user_id, username, new_lang, new_model))
         conn.commit()
         cur.close()
         conn.close()
-    except Exception as e:
-        logger.error(f"Błąd aktualizacji bazy: {e}")
+    except: pass
 
-# --- WYSZUKIWARKA BRAVE SEARCH ---
+# --- WYSZUKIWARKA BRAVE ---
 def search_brave(query):
     if not BRAVE_KEY: return ""
     try:
         url = "https://api.search.brave.com/res/v1/web/search"
         headers = {"Accept": "application/json", "X-Subscription-Token": BRAVE_KEY}
-        response = requests.get(url, headers=headers, params={"q": query, "count": 3})
+        params = {"q": query, "count": 3}
+        response = requests.get(url, headers=headers, params=params)
         data = response.json()
         results = [f"{r['title']}: {r['description']}" for r in data.get('web', {}).get('results', [])]
         return "\n".join(results) if results else ""
-    except Exception as e:
-        logger.error(f"Błąd Brave Search: {e}")
-        return ""
+    except: return ""
 
 def inteligentna_odpowiedz(chat_id, text, thread_id):
-    try:
-        if thread_id: bot.send_message(chat_id, text, message_thread_id=thread_id)
-        else: bot.send_message(chat_id, text)
-    except Exception as e:
-        logger.error(f"Błąd wysyłania wiadomości: {e}")
+    if thread_id: bot.send_message(chat_id, text, message_thread_id=thread_id)
+    else: bot.send_message(chat_id, text)
 
 # --- OBSŁUGA KOMEND ---
 @bot.message_handler(commands=['start'])
 def welcome(m):
-    update_user_db(m.from_user.id, m.from_user.username)
+    update_user_db(m.from_user.id, m.from_user.username, lang='EN', model='llama-3.3-70b-versatile')
     user_history[m.from_user.id] = []
-    inteligentna_odpowiedz(m.chat.id, "GentelmeN@CorE online.\n/en | /pl\n/llama | /fast | /qwen\n/rysuj [opis]\n/balance", m.message_thread_id)
+    msg = "Welcome to GentelmeN@CorE!\n/en | /pl - Language\n/llama | /fast | /qwen - AI Brain\n/balance - KuCoin\n/rysuj [opis] - Image Gen"
+    inteligentna_odpowiedz(m.chat.id, msg, m.message_thread_id)
 
 @bot.message_handler(commands=['en', 'pl'])
-def change_lang(m):
-    l = 'EN' if 'en' in m.text.lower() else 'PL'
-    update_user_db(m.from_user.id, m.from_user.username, lang=l)
-    bot.send_message(m.chat.id, f"Language: {l}")
+def change_language(m):
+    new_lang = 'EN' if 'EN' in m.text.upper() else 'PL'
+    update_user_db(m.from_user.id, m.from_user.username, lang=new_lang)
+    msg = "Language: English 🇬🇧" if new_lang == 'EN' else "Język: Polski 🇵🇱"
+    inteligentna_odpowiedz(m.chat.id, msg, m.message_thread_id)
 
 @bot.message_handler(commands=['llama', 'fast', 'qwen'])
 def change_model(m):
     cmd = m.text.lower()
     model_map = {'/llama': 'llama-3.3-70b-versatile', '/fast': 'llama-3.1-8b-instant', '/qwen': 'qwen-2.5-32b'}
-    selected = model_map.get(cmd, 'llama-3.3-70b-versatile')
-    update_user_db(m.from_user.id, m.from_user.username, model=selected)
-    bot.send_message(m.chat.id, f"Brain: {selected}")
+    selected_model = model_map.get(cmd, 'llama-3.3-70b-versatile')
+    update_user_db(m.from_user.id, m.from_user.username, model=selected_model)
+    inteligentna_odpowiedz(m.chat.id, f"🚀 Brain switched to: {selected_model}", m.message_thread_id)
 
+# --- KUCOIN BALANCE ---
 @bot.message_handler(commands=['balance'])
-def check_bal(m):
+def check_balance(m):
     if m.from_user.username != "GentelmeN_CorE":
-        bot.send_message(m.chat.id, f"🚫 Brak dostępu dla {m.from_user.username}")
+        inteligentna_odpowiedz(m.chat.id, f"🚫 No access. Your username: {m.from_user.username}", m.message_thread_id)
         return
     if not kucoin:
-        bot.send_message(m.chat.id, "❌ Błąd kluczy KuCoin.")
+        inteligentna_odpowiedz(m.chat.id, "❌ Error: KuCoin keys not found.", m.message_thread_id)
         return
     try:
-        res = kucoin.fetch_balance()
-        txt = "💰 Portfel:\n" + "\n".join([f"{k}: {v}" for k, v in res['total'].items() if v > 0])
-        bot.send_message(m.chat.id, txt)
+        balance = kucoin.fetch_balance()
+        text = "💰 KuCoin Total Balance:\n"
+        for asset, amount in balance['total'].items():
+            if amount > 0: text += f"- {asset}: {amount}\n"
+        inteligentna_odpowiedz(m.chat.id, text if len(text) > 20 else "No funds found.", m.message_thread_id)
     except Exception as e:
-        bot.send_message(m.chat.id, f"❌ Błąd: {e}")
+        inteligentna_odpowiedz(m.chat.id, f"❌ KuCoin Error: {str(e)}", m.message_thread_id)
 
-# --- GENERATOR OBRAZÓW (FLUX) ---
+# --- GENERATOR OBRAZÓW (HUGGING FACE) ---
 @bot.message_handler(commands=['rysuj'])
-def draw(m):
+def generate_image(m):
     prompt = m.text.replace('/rysuj', '').strip()
     if not prompt:
-        bot.send_message(m.chat.id, "🎨 Co narysować?")
+        inteligentna_odpowiedz(m.chat.id, "🎨 Usage: /rysuj [your description]", m.message_thread_id)
         return
-    bot.send_message(m.chat.id, f"🎨 Maluję: {prompt}...")
     
-    API = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
+    inteligentna_odpowiedz(m.chat.id, f"🎨 Painting: '{prompt}'... (wait ~20s)", m.message_thread_id)
+    
+    API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    payload = {
-        "inputs": prompt,
-        "parameters": {"seed": random.randint(1, 1000000)},
-        "options": {"wait_for_model": True}
-    }
     
     try:
-        response = requests.post(API, headers=headers, json=payload, timeout=120)
+        response = requests.post(API_URL, headers=headers, json={"inputs": prompt}, timeout=120)
         if response.status_code == 200:
-            img = io.BytesIO(response.content)
-            img.seek(0) # Zapobiega ucinaniu obrazu
-            bot.send_photo(m.chat.id, img, reply_to_message_id=m.message_id)
+            image_bytes = io.BytesIO(response.content)
+            image_bytes.seek(0) # Kluczowe przewinięcie bufora
+            bot.send_photo(m.chat.id, image_bytes, reply_to_message_id=m.message_id)
         else:
-            bot.send_message(m.chat.id, f"❌ HF Error: {response.status_code}")
+            inteligentna_odpowiedz(m.chat.id, f"❌ HF Error: {response.status_code}", m.message_thread_id)
     except Exception as e:
-        bot.send_message(m.chat.id, f"❌ Błąd: {e}")
+        inteligentna_odpowiedz(m.chat.id, f"❌ Error: {str(e)}", m.message_thread_id)
 
-# --- OBSŁUGA GŁOSU (WHISPER) ---
+# --- WHISPER (GŁOS NA TEKST) ---
 @bot.message_handler(content_types=['voice'])
 def handle_voice(m):
     try:
         file_info = bot.get_file(m.voice.file_id)
-        data = bot.download_file(file_info.file_path)
+        downloaded_file = bot.download_file(file_info.file_path)
         file_name = f"voice_{m.chat.id}.ogg"
-        with open(file_name, "wb") as f: f.write(data)
-        with open(file_name, "rb") as audio:
-            tr = groq_client.audio.transcriptions.create(file=(file_name, audio.read()), model="whisper-large-v3")
-        bot.send_message(m.chat.id, f"🎙️ {tr.text}")
-        m.text = tr.text
-        ai_chat(m)
+        with open(file_name, 'wb') as new_file: new_file.write(downloaded_file)
+        with open(file_name, "rb") as audio_file:
+            transcription = groq_client.audio.transcriptions.create(file=(file_name, audio_file.read()), model="whisper-large-v3")
+        user_text = transcription.text
         os.remove(file_name)
+        inteligentna_odpowiedz(m.chat.id, f"🎙️ *I heard:* {user_text}", m.message_thread_id)
+        m.text = user_text
+        ai_chat(m)
     except Exception as e:
-        logger.error(f"Błąd głosówki: {e}")
+        inteligentna_odpowiedz(m.chat.id, f"Voice error: {str(e)}", m.message_thread_id)
 
-# --- CZAT AI (Z HISTORIĄ I INTERNETEM) ---
+# --- LOGIKA CHATU AI ---
 @bot.message_handler(func=lambda m: True)
 def ai_chat(m):
-    uid = m.from_user.id
-    l, model = get_user_data(uid)
-    sys = "You are GentelmeN@CorE." if l == 'EN' else "Jesteś GentelmeN@CorE."
+    user_id = m.from_user.id
+    user_lang, user_model = get_user_data(user_id)
     
-    if any(x in m.text.lower() for x in ["cena", "news", "bitcoin"]):
-        web = search_brave(m.text)
-        if web: sys += f"\nDane z sieci: {web}"
+    if user_lang == 'EN':
+        sys_msg = "You are GentelmeN@CorE, a sovereign digital entity. Speak ONLY English. Never apologize."
+    else:
+        sys_msg = "Jesteś GentelmeN@CorE, suwerennym bytem cyfrowym. Mów TYLKO po polsku. Nigdy nie przepraszaj."
+    
+    if any(word in m.text.lower() for word in ["cena", "news", "bitcoin", "kurs", "price"]):
+        web_info = search_brave(m.text)
+        if web_info: sys_msg += f"\nRecent web context: {web_info}"
 
-    if uid not in user_history: user_history[uid] = []
-    user_history[uid].append({"role": "user", "content": m.text})
+    if user_id not in user_history: user_history[user_id] = []
+    user_history[user_id].append({"role": "user", "content": m.text})
     
+    # Trim history BEFORE sending to API
+    context = [{"role": "system", "content": sys_msg}] + user_history[user_id][-MAX_HISTORY:]
+
     try:
-        res = groq_client.chat.completions.create(
-            messages=[{"role": "system", "content": sys}] + user_history[uid][-MAX_HISTORY:], 
-            model=model
-        )
-        reply = res.choices[0].message.content
-        user_history[uid].append({"role": "assistant", "content": reply})
+        completion = groq_client.chat.completions.create(messages=context, model=user_model)
+        reply = completion.choices[0].message.content
+        user_history[user_id].append({"role": "assistant", "content": reply})
         inteligentna_odpowiedz(m.chat.id, reply, m.message_thread_id)
     except Exception as e:
-        logger.error(f"Błąd czatu AI: {e}")
+        inteligentna_odpowiedz(m.chat.id, f"AI Error: {str(e)}", m.message_thread_id)
 
+print("GentelmeN@CorE status: Online. Waiting for triggers...")
+time.sleep(10)
 bot.infinity_polling()
