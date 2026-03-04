@@ -5,6 +5,7 @@ import requests
 import psycopg2
 import time
 import io
+import random
 from groq import Groq
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -127,94 +128,36 @@ def change_model(m):
     update_user_db(m.from_user.id, m.from_user.username, model=selected_model)
     inteligentna_odpowiedz(m.chat.id, f"🚀 Brain switched to: {selected_model}", m.message_thread_id)
 
-# ----------------- KUCOIN -----------------
-@bot.message_handler(commands=['balance'])
-def check_balance(m):
-    if m.from_user.username != "GentelmeN_CorE":
-        inteligentna_odpowiedz(m.chat.id, f"🚫 Brak dostępu. Twój username to: {m.from_user.username}", m.message_thread_id)
-        return
-        
-    if not kucoin:
-        inteligentna_odpowiedz(m.chat.id, "❌ Błąd: Brak kluczy KuCoin w Railway.", m.message_thread_id)
-        return
-
-    inteligentna_odpowiedz(m.chat.id, "🔄 Łączę się z KuCoin...", m.message_thread_id)
-    try:
-        balance = kucoin.fetch_balance()
-        text = "💰 Saldo KuCoin:\n"
-        for asset, amount in balance['total'].items():
-            if amount > 0: text += f"- {asset}: {amount}\n"
-        inteligentna_odpowiedz(m.chat.id, text if len(text) > 18 else "Brak środków.", m.message_thread_id)
-    except Exception as e:
-        inteligentna_odpowiedz(m.chat.id, f"❌ Błąd KuCoin: {str(e)}", m.message_thread_id)
-
-# ----------------- HUGGING FACE (OBRAZY) -----------------
 @bot.message_handler(commands=['rysuj'])
 def generate_image(m):
     prompt = m.text.replace('/rysuj', '').strip()
     if not prompt:
-        inteligentna_odpowiedz(m.chat.id, "🎨 Co mam narysować? Użyj: /rysuj cyberpunkowy kot", m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, "🎨 Co mam narysować?", m.message_thread_id)
         return
-        
-    if not HF_TOKEN:
-        inteligentna_odpowiedz(m.chat.id, "❌ Brak zmiennej HF_TOKEN w Railway.", m.message_thread_id)
-        return
-
-    inteligentna_odpowiedz(m.chat.id, f"🎨 Maluję: '{prompt}'... (10-20 sekund)", m.message_thread_id)
-    
+    inteligentna_odpowiedz(m.chat.id, f"🎨 Maluję: '{prompt}'...", m.message_thread_id)
     API_URL = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    
+    payload = {"inputs": prompt, "parameters": {"seed": random.randint(0, 1000000)}}
     try:
-        response = requests.post(API_URL, headers=headers, json={"inputs": prompt}, timeout=60)
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=60)
         if response.status_code == 200:
-            image_bytes = io.BytesIO(response.content)
-            bot.send_photo(m.chat.id, image_bytes, reply_to_message_id=m.message_id)
+            bot.send_photo(m.chat.id, io.BytesIO(response.content), reply_to_message_id=m.message_id)
         else:
-            inteligentna_odpowiedz(m.chat.id, f"❌ Błąd serwera HF: {response.status_code} - {response.text}", m.message_thread_id)
+            inteligentna_odpowiedz(m.chat.id, f"❌ Błąd HF: {response.status_code}", m.message_thread_id)
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"❌ Błąd: {str(e)}", m.message_thread_id)
-
-@bot.message_handler(content_types=['voice'])
-def handle_voice(m):
-    try:
-        file_info = bot.get_file(m.voice.file_id)
-        downloaded_file = bot.download_file(file_info.file_path)
-        file_name = f"voice_{m.chat.id}.ogg"
-        with open(file_name, 'wb') as new_file: new_file.write(downloaded_file)
-        with open(file_name, "rb") as audio_file:
-            transcription = groq_client.audio.transcriptions.create(file=(file_name, audio_file.read()), model="whisper-large-v3")
-        user_text = transcription.text
-        os.remove(file_name)
-        inteligentna_odpowiedz(m.chat.id, f"🎙️ *Usłyszałem:* {user_text}", m.message_thread_id)
-        m.text = user_text
-        ai_chat(m)
-    except Exception as e:
-        inteligentna_odpowiedz(m.chat.id, f"Błąd głosu: {str(e)}", m.message_thread_id)
 
 @bot.message_handler(func=lambda m: True)
 def ai_chat(m):
     user_id = m.from_user.id
     user_lang, user_model = get_user_data(user_id)
-    if user_lang == 'EN':
-        sys_msg = "You are GentelmeN@CorE, a sovereign digital entity. Speak ONLY English. Never apologize."
-    else:
-        sys_msg = "Jesteś GentelmeN@CorE, suwerennym bytem cyfrowym. Mów TYLKO po polsku. Nigdy nie przepraszaj."
-    
-    web_info = ""
-    if any(word in m.text.lower() for word in ["cena", "news", "bitcoin", "kurs", "price", "today"]):
-        web_info = search_brave(m.text)
-        if web_info: sys_msg += f"\nWeb data: {web_info}"
-
+    sys_msg = "You are GentelmeN@CorE." if user_lang == 'EN' else "Jesteś GentelmeN@CorE."
     if user_id not in user_history: user_history[user_id] = []
     user_history[user_id].append({"role": "user", "content": m.text})
-    messages = [{"role": "system", "content": sys_msg}] + user_history[user_id]
-
     try:
-        completion = groq_client.chat.completions.create(messages=messages, model=user_model)
+        completion = groq_client.chat.completions.create(messages=[{"role": "system", "content": sys_msg}] + user_history[user_id], model=user_model)
         reply = completion.choices[0].message.content
         user_history[user_id].append({"role": "assistant", "content": reply})
-        if len(user_history[user_id]) > MAX_HISTORY: user_history[user_id] = user_history[user_id][-MAX_HISTORY:]
         inteligentna_odpowiedz(m.chat.id, reply, m.message_thread_id)
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"Error: {str(e)}", m.message_thread_id)
