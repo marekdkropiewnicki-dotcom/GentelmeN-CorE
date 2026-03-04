@@ -51,10 +51,12 @@ def register_handlers(bot, groq_client, kucoin):
         try:
             balance = kucoin.fetch_balance()
             text = "💰 Saldo KuCoin:\n"
+            has_assets = False
             for asset, amount in balance['total'].items():
                 if amount > 0:
                     text += f"- {asset}: {amount}\n"
-            inteligentna_odpowiedz(bot, m.chat.id, text if len(text) > 18 else "Brak środków.", m.message_thread_id)
+                    has_assets = True
+            inteligentna_odpowiedz(bot, m.chat.id, text if has_assets else "Brak środków.", m.message_thread_id)
         except Exception as e:
             inteligentna_odpowiedz(bot, m.chat.id, f"❌ Błąd KuCoin: {str(e)}", m.message_thread_id)
 
