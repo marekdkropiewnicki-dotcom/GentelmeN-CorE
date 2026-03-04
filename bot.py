@@ -6,7 +6,12 @@ import psycopg2
 import time
 import io
 import random
+import logging
 from groq import Groq
+
+# --- LOGOWANIE BŁĘDÓW ---
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # --- KONFIGURACJA ŚRODOWISKA ---
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -18,23 +23,25 @@ HF_TOKEN = os.environ.get("HF_TOKEN")
 bot = telebot.TeleBot(TOKEN)
 groq_client = Groq(api_key=GROQ_KEY)
 
-# --- INICJALIZACJA KUCOIN ---
+# --- INICJALIZACJA GIEŁDY KUCOIN ---
 try:
     kucoin = ccxt.kucoin({
         'apiKey': os.environ.get("KUCOIN_API_KEY"),
         'secret': os.environ.get("KUCOIN_SECRET"),
         'password': os.environ.get("KUCOIN_PASSWORD"),
     })
-except:
+    logger.info("Połączono z KuCoin.")
+except Exception as e:
     kucoin = None
+    logger.error(f"Błąd KuCoin: {e}")
 
-# --- ZMIENNE SESJI I HISTORIA ---
+# --- SESJE I HISTORIA ---
 user_history = {}
 user_prefs = {} 
 user_models = {} 
 MAX_HISTORY = 6
 
-# --- BAZA DANYCH POSTGRESQL ---
+# --- LOGIKA BAZY DANYCH (POSTGRESQL) ---
 def init_db():
     if not DB_URL: return
     try:
@@ -45,13 +52,15 @@ def init_db():
                 user_id BIGINT PRIMARY KEY,
                 username TEXT,
                 language TEXT DEFAULT 'EN',
-                model_name TEXT DEFAULT 'llama-3.3-70b-versatile'
+                model_name TEXT DEFAULT 'llama-3.3-70b-versatile',
+                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         conn.commit()
         cur.close()
         conn.close()
-    except: pass
+    except Exception as e:
+        logger.error(f"DB Init Error: {e}")
 
 init_db()
 
@@ -84,20 +93,22 @@ def update_user_db(user_id, username, lang=None, model=None):
             INSERT INTO users (user_id, username, language, model_name) 
             VALUES (%s, %s, %s, %s) 
             ON CONFLICT (user_id) 
-            DO UPDATE SET language = EXCLUDED.language, model_name = EXCLUDED.model_name, username = EXCLUDED.username
+            DO UPDATE SET language = EXCLUDED.language, 
+                          model_name = EXCLUDED.model_name, 
+                          username = EXCLUDED.username
         """, (user_id, username, new_l, new_m))
         conn.commit()
         cur.close()
         conn.close()
     except: pass
 
-# --- WYSZUKIWARKA BRAVE ---
+# --- WYSZUKIWARKA BRAVE SEARCH ---
 def search_brave(query):
     if not BRAVE_KEY: return ""
     try:
         url = "https://api.search.brave.com/res/v1/web/search"
         headers = {"Accept": "application/json", "X-Subscription-Token": BRAVE_KEY}
-        response = requests.get(url, headers=headers, params={"q": query, "count": 2})
+        response = requests.get(url, headers=headers, params={"q": query, "count": 3})
         data = response.json()
         results = [f"{r['title']}: {r['description']}" for r in data.get('web', {}).get('results', [])]
         return "\n".join(results) if results else ""
@@ -110,43 +121,41 @@ def welcome(m):
     bot.send_message(m.chat.id, "GentelmeN@CorE online.\n/en | /pl\n/rysuj [opis]\n/balance")
 
 @bot.message_handler(commands=['en', 'pl'])
-def lang(m):
-    new_l = 'EN' if 'en' in m.text.lower() else 'PL'
-    update_user_db(m.from_user.id, m.from_user.username, lang=new_l)
-    bot.send_message(m.chat.id, f"Language set to: {new_l}")
+def change_lang(m):
+    l = 'EN' if 'en' in m.text.lower() else 'PL'
+    update_user_db(m.from_user.id, m.from_user.username, lang=l)
+    bot.send_message(m.chat.id, f"Język: {l}")
 
 @bot.message_handler(commands=['balance'])
-def bal(m):
+def check_bal(m):
     # PRZYWRÓCONO: Autoryzacja po username
     if m.from_user.username != "GentelmeN_CorE":
-        bot.send_message(m.chat.id, f"🚫 Brak dostępu dla: {m.from_user.username}")
+        bot.send_message(m.chat.id, f"🚫 Brak dostępu dla {m.from_user.username}")
         return
     if not kucoin:
-        bot.send_message(m.chat.id, "❌ Błąd: Klucze KuCoin nie są skonfigurowane.")
+        bot.send_message(m.chat.id, "❌ Błąd kluczy KuCoin.")
         return
     try:
         res = kucoin.fetch_balance()
-        txt = "💰 Portfel KuCoin:\n"
-        for asset, amount in res['total'].items():
-            if amount > 0: txt += f"- {asset}: {amount}\n"
+        txt = "💰 Portfel:\n" + "\n".join([f"{k}: {v}" for k, v in res['total'].items() if v > 0])
         bot.send_message(m.chat.id, txt)
     except Exception as e:
-        bot.send_message(m.chat.id, f"❌ Błąd KuCoin: {str(e)}")
+        bot.send_message(m.chat.id, f"❌ Błąd: {e}")
 
 # --- GENERATOR OBRAZÓW (FLUX) ---
 @bot.message_handler(commands=['rysuj'])
 def draw(m):
     prompt = m.text.replace('/rysuj', '').strip()
     if not prompt:
-        bot.send_message(m.chat.id, "🎨 Co mam narysować?")
+        bot.send_message(m.chat.id, "🎨 Co narysować?")
         return
-    bot.send_message(m.chat.id, f"🎨 Maluję: '{prompt}'... (czekaj do 2 min)")
+    bot.send_message(m.chat.id, f"🎨 Maluję: {prompt}...")
     
     API = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     payload = {
         "inputs": prompt,
-        "parameters": {"seed": random.randint(1, 10**6)},
+        "parameters": {"seed": random.randint(1, 1000000)},
         "options": {"wait_for_model": True}
     }
     
@@ -155,39 +164,39 @@ def draw(m):
         response = requests.post(API, headers=headers, json=payload, timeout=120)
         if response.status_code == 200:
             img = io.BytesIO(response.content)
-            img.seek(0) # NAPRAWA: To zapobiega ucinaniu obrazu
+            img.seek(0) # Kluczowe, żeby nie ucinało obrazu
             bot.send_photo(m.chat.id, img, reply_to_message_id=m.message_id)
         else:
-            bot.send_message(m.chat.id, f"❌ Błąd API (HF): {response.status_code}")
+            bot.send_message(m.chat.id, f"❌ HF Error: {response.status_code}")
     except Exception as e:
-        bot.send_message(m.chat.id, f"❌ Błąd generatora: {str(e)}")
+        bot.send_message(m.chat.id, f"❌ Błąd: {e}")
 
-# --- WIADOMOŚCI GŁOSOWE ---
+# --- OBSŁUGA GŁOSU (WHISPER) ---
 @bot.message_handler(content_types=['voice'])
-def voice(m):
+def handle_voice(m):
     try:
         file_info = bot.get_file(m.voice.file_id)
         data = bot.download_file(file_info.file_path)
-        with open("voice_tmp.ogg", "wb") as f: f.write(data)
-        with open("voice_tmp.ogg", "rb") as f:
-            tr = groq_client.audio.transcriptions.create(file=("voice_tmp.ogg", f.read()), model="whisper-large-v3")
-        bot.send_message(m.chat.id, f"🎙️ Usłyszałem: {tr.text}")
+        with open("v.ogg", "wb") as f: f.write(data)
+        with open("v.ogg", "rb") as f:
+            tr = groq_client.audio.transcriptions.create(file=("v.ogg", f.read()), model="whisper-large-v3")
+        bot.send_message(m.chat.id, f"🎙️ {tr.text}")
         m.text = tr.text
         chat(m)
-        os.remove("voice_tmp.ogg")
+        os.remove("v.ogg")
     except Exception as e:
-        bot.send_message(m.chat.id, f"❌ Błąd głosówki: {str(e)}")
+        bot.send_message(m.chat.id, f"❌ Voice Error: {e}")
 
-# --- CHAT AI (GROQ) ---
+# --- CHAT AI (Z HISTORIĄ I BRAVE SEARCH) ---
 @bot.message_handler(func=lambda m: True)
 def chat(m):
     uid = m.from_user.id
     l, model = get_user_data(uid)
     sys = "You are GentelmeN@CorE." if l == 'EN' else "Jesteś GentelmeN@CorE."
     
-    if any(x in m.text.lower() for x in ["cena", "news", "bitcoin", "price"]):
+    if any(x in m.text.lower() for x in ["cena", "news", "bitcoin"]):
         web = search_brave(m.text)
-        if web: sys += f"\nAktualne dane z sieci: {web}"
+        if web: sys += f"\nAktualne dane: {web}"
 
     if uid not in user_history: user_history[uid] = []
     user_history[uid].append({"role": "user", "content": m.text})
@@ -201,7 +210,6 @@ def chat(m):
         user_history[uid].append({"role": "assistant", "content": reply})
         bot.send_message(m.chat.id, reply)
     except Exception as e:
-        bot.send_message(m.chat.id, f"❌ Błąd AI: {str(e)}")
+        bot.send_message(m.chat.id, f"❌ AI Error: {e}")
 
-print("System GentelmeN@CorE przywrócony i gotowy...")
 bot.infinity_polling()
