@@ -111,7 +111,6 @@ def inteligentna_odpowiedz(chat_id, text, thread_id):
 def welcome(m):
     update_user_db(m.from_user.id, m.from_user.username, lang='EN', model='llama-3.3-70b-versatile')
     user_history[m.from_user.id] = []
-    # Poprawione na małe litery dla wygody mobilnej
     inteligentna_odpowiedz(m.chat.id, "Welcome to GentelmeN@CorE!\n/en | /pl - language\n/llama | /fast | /qwen - ai brain\n/balance - kucoin\n/rysuj [opis] - image gen", m.message_thread_id)
 
 @bot.message_handler(commands=['en', 'pl'])
@@ -155,21 +154,26 @@ def generate_image(m):
     
     inteligentna_odpowiedz(m.chat.id, f"🎨 maluję: '{prompt}'... (do 2 min)", m.message_thread_id)
     
-    API_URL = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
+    # 1. NEW DIRECT STANDARD API ENDPOINT
+    API_URL = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
+    # 2. headers remain the same
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    # 3. Enhanced direct standard payload
     payload = {
         "inputs": prompt,
         "parameters": {
-            "seed": random.randint(0, 10**6),
-            "wait_for_model": True
+            "seed": random.randint(0, 10**6), # Seed
+            "wait_for_model": True # Direct standard support for wait_for_model
         }
     }
     
     try:
+        # 4. robust direct standard POST with 120s timeout
         response = requests.post(API_URL, headers=headers, json=payload, timeout=120)
         if response.status_code == 200:
             bot.send_photo(m.chat.id, io.BytesIO(response.content), reply_to_message_id=m.message_id)
         else:
+            # 5. Report standard error code
             inteligentna_odpowiedz(m.chat.id, f"❌ hf error: {response.status_code}", m.message_thread_id)
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"❌ error: {str(e)}", m.message_thread_id)
