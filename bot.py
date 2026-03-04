@@ -95,7 +95,7 @@ def search_brave(query):
     if not BRAVE_KEY: return ""
     try:
         url = "https://api.search.brave.com/res/v1/web/search"
-        headers = {"Accept": "application/json", "X-Subscription-Token": BRAVE_KEY}
+        headers = {"Accept": "application/json", "X-Subscription-Token": Brave_KEY}
         params = {"q": query, "count": 3}
         response = requests.get(url, headers=headers, params=params)
         data = response.json()
@@ -154,26 +154,24 @@ def generate_image(m):
     
     inteligentna_odpowiedz(m.chat.id, f"🎨 maluję: '{prompt}'... (do 2 min)", m.message_thread_id)
     
-    # 1. NEW DIRECT STANDARD API ENDPOINT
-    API_URL = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
-    # 2. headers remain the same
+    # 1. NEW STABLE DIRECT API ENDPOINT FOR FLUX.1-dev
+    API_URL = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-dev"
+    # 2. headers and unique seed remain the same
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    # 3. Enhanced direct standard payload
     payload = {
         "inputs": prompt,
         "parameters": {
-            "seed": random.randint(0, 10**6), # Seed
-            "wait_for_model": True # Direct standard support for wait_for_model
+            "seed": random.randint(0, 10**6), # unique seed
+            "wait_for_model": True # Direct standard support
         }
     }
     
     try:
-        # 4. robust direct standard POST with 120s timeout
+        # 3. direct standard POST with 120s timeout and wait_for_model
         response = requests.post(API_URL, headers=headers, json=payload, timeout=120)
         if response.status_code == 200:
             bot.send_photo(m.chat.id, io.BytesIO(response.content), reply_to_message_id=m.message_id)
         else:
-            # 5. Report standard error code
             inteligentna_odpowiedz(m.chat.id, f"❌ hf error: {response.status_code}", m.message_thread_id)
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"❌ error: {str(e)}", m.message_thread_id)
