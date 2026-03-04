@@ -8,6 +8,7 @@ import io
 import random
 from groq import Groq
 
+# --- KONFIGURACJA ZMIENNYCH ---
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GROQ_KEY = os.environ.get("GROQ_KEY")
 BRAVE_KEY = os.environ.get("BRAVE_API_KEY")
@@ -17,6 +18,7 @@ HF_TOKEN = os.environ.get("HF_TOKEN")
 bot = telebot.TeleBot(TOKEN)
 groq_client = Groq(api_key=GROQ_KEY)
 
+# --- KONFIGURACJA KUCOIN ---
 try:
     kucoin = ccxt.kucoin({
         'apiKey': os.environ.get("KUCOIN_API_KEY"),
@@ -26,11 +28,13 @@ try:
 except:
     kucoin = None
 
+# --- ZMIENNE SESJI ---
 user_history = {}
 user_prefs = {} 
 user_models = {} 
 MAX_HISTORY = 6
 
+# --- BAZA DANYCH (POSTGRESQL) ---
 def init_db():
     if not DB_URL: return
     try:
@@ -91,11 +95,12 @@ def update_user_db(user_id, username, lang=None, model=None):
         conn.close()
     except: pass
 
+# --- BRAVE SEARCH ---
 def search_brave(query):
     if not BRAVE_KEY: return ""
     try:
         url = "https://api.search.brave.com/res/v1/web/search"
-        headers = {"Accept": "application/json", "X-Subscription-Token": Brave_KEY}
+        headers = {"Accept": "application/json", "X-Subscription-Token": BRAVE_KEY}
         params = {"q": query, "count": 3}
         response = requests.get(url, headers=headers, params=params)
         data = response.json()
@@ -107,6 +112,7 @@ def inteligentna_odpowiedz(chat_id, text, thread_id):
     if thread_id: bot.send_message(chat_id, text, message_thread_id=thread_id)
     else: bot.send_message(chat_id, text)
 
+# --- KOMENDY ---
 @bot.message_handler(commands=['start'])
 def welcome(m):
     update_user_db(m.from_user.id, m.from_user.username, lang='EN', model='llama-3.3-70b-versatile')
@@ -131,10 +137,10 @@ def change_model(m):
 @bot.message_handler(commands=['balance'])
 def check_balance(m):
     if m.from_user.username != "GentelmeN_CorE":
-        inteligentna_odpowiedz(m.chat.id, f"🚫 no access for: {m.from_user.username}", m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, "🚫 No access.", m.message_thread_id)
         return
     if not kucoin:
-        inteligentna_odpowiedz(m.chat.id, "❌ error: kucoin keys missing.", m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, "❌ Error: KuCoin keys missing.", m.message_thread_id)
         return
     try:
         balance = kucoin.fetch_balance()
@@ -143,8 +149,9 @@ def check_balance(m):
             if amount > 0: text += f"- {asset}: {amount}\n"
         inteligentna_odpowiedz(m.chat.id, text, m.message_thread_id)
     except Exception as e:
-        inteligentna_odpowiedz(m.chat.id, f"❌ kucoin error: {str(e)}", m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, f"❌ KuCoin Error: {str(e)}", m.message_thread_id)
 
+# --- GENEROWANIE OBRAZÓW (FLUX.1-schnell via ROUTER) ---
 @bot.message_handler(commands=['rysuj'])
 def generate_image(m):
     prompt = m.text.replace('/rysuj', '').strip()
@@ -154,20 +161,14 @@ def generate_image(m):
     
     inteligentna_odpowiedz(m.chat.id, f"🎨 maluję: '{prompt}'... (do 2 min)", m.message_thread_id)
     
-    # 1. NEW STABLE DIRECT API ENDPOINT FOR FLUX.1-dev
-    API_URL = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-dev"
-    # 2. headers and unique seed remain the same
+    API_URL = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     payload = {
         "inputs": prompt,
-        "parameters": {
-            "seed": random.randint(0, 10**6), # unique seed
-            "wait_for_model": True # Direct standard support
-        }
+        "parameters": {"seed": random.randint(0, 10**6)}
     }
     
     try:
-        # 3. direct standard POST with 120s timeout and wait_for_model
         response = requests.post(API_URL, headers=headers, json=payload, timeout=120)
         if response.status_code == 200:
             bot.send_photo(m.chat.id, io.BytesIO(response.content), reply_to_message_id=m.message_id)
@@ -176,23 +177,25 @@ def generate_image(m):
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"❌ error: {str(e)}", m.message_thread_id)
 
+# --- WIADOMOŚCI GŁOSOWE ---
 @bot.message_handler(content_types=['voice'])
 def handle_voice(m):
     try:
         file_info = bot.get_file(m.voice.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         file_name = f"voice_{m.chat.id}.ogg"
-        with open(file_name, 'wb') as new_file: new_file.write(downloaded_file)
-        with open(file_name, "rb") as audio_file:
-            transcription = groq_client.audio.transcriptions.create(file=(file_name, audio_file.read()), model="whisper-large-v3")
+        with open(file_name, 'wb') as f: f.write(downloaded_file)
+        with open(file_name, "rb") as audio:
+            transcription = groq_client.audio.transcriptions.create(file=(file_name, audio.read()), model="whisper-large-v3")
         user_text = transcription.text
         os.remove(file_name)
-        inteligentna_odpowiedz(m.chat.id, f"🎙️ usłyszałem: {user_text}", m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, f"🎙️ Usłyszałem: {user_text}", m.message_thread_id)
         m.text = user_text
         ai_chat(m)
     except Exception as e:
-        inteligentna_odpowiedz(m.chat.id, f"voice error: {str(e)}", m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, f"Voice Error: {str(e)}", m.message_thread_id)
 
+# --- CHAT AI ---
 @bot.message_handler(func=lambda m: True)
 def ai_chat(m):
     user_id = m.from_user.id
@@ -202,7 +205,7 @@ def ai_chat(m):
     web_info = ""
     if any(word in m.text.lower() for word in ["cena", "news", "bitcoin", "price"]):
         web_info = search_brave(m.text)
-        if web_info: sys_msg += f"\nWeb data: {web_info}"
+        if web_info: sys_msg += f"\nWeb info: {web_info}"
 
     if user_id not in user_history: user_history[user_id] = []
     user_history[user_id].append({"role": "user", "content": m.text})
@@ -216,6 +219,6 @@ def ai_chat(m):
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"error: {str(e)}", m.message_thread_id)
 
-print("system starting...")
+print("Full system starting...")
 time.sleep(10)
 bot.infinity_polling()
