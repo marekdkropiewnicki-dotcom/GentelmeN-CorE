@@ -6,23 +6,28 @@ import psycopg2
 import time
 import io
 import tempfile
+import threading
 from groq import Groq
 
-# --- ZMIENNE ŚRODOWISKOWE ---
+# ==========================================
+# 1. ZMIENNE ŚRODOWISKOWE I KONFIGURACJA
+# ==========================================
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GROQ_KEY = os.environ.get("GROQ_KEY")
 BRAVE_KEY = os.environ.get("BRAVE_API_KEY")
 DB_URL = os.environ.get("DATABASE_URL")
 HF_TOKEN = os.environ.get("HF_TOKEN")
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN") # Opcjonalnie
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 
-# Ważne: Zmień na swoje numeryczne ID z Telegrama
 ADMIN_ID = int(os.environ.get("ADMIN_ID", 0))
+MAX_HISTORY = 40
 
 bot = telebot.TeleBot(TOKEN)
 groq_client = Groq(api_key=GROQ_KEY)
 
-# --- INICJALIZACJA KUCOIN ---
+# ==========================================
+# 2. INICJALIZACJA ZEWNĘTRZNYCH API
+# ==========================================
 try:
     kucoin = ccxt.kucoin({
         'apiKey': os.environ.get("KUCOIN_API_KEY"),
@@ -37,10 +42,9 @@ user_history = {}
 user_prefs = {} 
 user_models = {} 
 
-# ZWIĘKSZONA PAMIĘĆ BOTA DLA GROQ PREMIUM
-MAX_HISTORY = 40 
-
-# --- BAZA DANYCH (Zoptymalizowana) ---
+# ==========================================
+# 3. BAZA DANYCH (POSTGRESQL) - TERAZ Z ALERTAMI
+# ==========================================
 def init_db():
     if not DB_URL: return
     try:
@@ -53,6 +57,15 @@ def init_db():
                         language TEXT DEFAULT 'EN',
                         model_name TEXT DEFAULT 'llama-3.3-70b-versatile',
                         joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS alerts (
+                        id SERIAL PRIMARY KEY,
+                        user_id BIGINT,
+                        symbol TEXT,
+                        target_price NUMERIC,
+                        direction TEXT
                     )
                 """)
     except Exception as e:
@@ -98,7 +111,9 @@ def update_user_db(user_id, username, lang=None, model=None):
     except Exception as e:
         print(f"Błąd zapisu DB: {e}")
 
-# --- API ZEWNĘTRZNE ---
+# ==========================================
+# 4. FUNKCJE POMOCNICZE I WYSZUKIWARKA
+# ==========================================
 def search_brave_pro(query, count=3):
     if not BRAVE_KEY: return ""
     try:
@@ -122,98 +137,68 @@ def inteligentna_odpowiedz(chat_id, text, thread_id, parse_mode=None, disable_pr
     else: 
         bot.send_message(chat_id, text, parse_mode=parse_mode, disable_web_page_preview=disable_preview)
 
-# --- KOMENDY ---
-@bot.message_handler(commands=['start'])
-def welcome(m):
-    update_user_db(m.from_user.id, m.from_user.username, lang='EN', model='llama-3.3-70b-versatile')
-    user_history[m.from_user.id] = []
-    msg = (
-        "Welcome to GentelmeN@CorE! 🎩\n\n"
-        "🛠️ **Ustawienia:**\n"
-        "/en | /pl - Language\n"
-        "/llama | /fast | /qwen - AI Brain\n"
-        "/reset - Wyczyść pamięć rozmowy\n\n"
-        "🚀 **Narzędzia:**\n"
-        "/szukaj [hasło] - Brave Search Pro\n"
-        "/github [hasło] - Szukaj repozytoriów\n"
-        "/rysuj [opis] - Image Gen (HF Pro)\n"
-        "/balance - KuCoin (Admin only)"
-    )
-    inteligentna_odpowiedz(m.chat.id, msg, m.message_thread_id, parse_mode="Markdown")
-
-@bot.message_handler(commands=['reset', 'clear'])
-def reset_memory(m):
-    user_id = m.from_user.id
-    user_history[user_id] = []
-    bot.send_chat_action(m.chat.id, 'typing')
-    msg = "🧠 Moja pamięć podręczna została wyczyszczona. Zaczynamy z czystą kartą!"
-    inteligentna_odpowiedz(m.chat.id, msg, m.message_thread_id)
-
-@bot.message_handler(commands=['en', 'pl'])
-def change_language(m):
-    new_lang = 'EN' if 'EN' in m.text.upper() else 'PL'
-    update_user_db(m.from_user.id, m.from_user.username, lang=new_lang)
-    msg = "Language: English 🇬🇧" if new_lang == 'EN' else "Język: Polski 🇵🇱"
-    inteligentna_odpowiedz(m.chat.id, msg, m.message_thread_id)
-
-@bot.message_handler(commands=['llama', 'fast', 'qwen'])
-def change_model(m):
-    cmd = m.text.lower()
-    model_map = {'/llama': 'llama-3.3-70b-versatile', '/fast': 'llama-3.1-8b-instant', '/qwen': 'qwen-2.5-32b'}
-    selected_model = model_map.get(cmd, 'llama-3.3-70b-versatile')
-    update_user_db(m.from_user.id, m.from_user.username, model=selected_model)
-    inteligentna_odpowiedz(m.chat.id, f"🚀 Brain switched to: {selected_model}", m.message_thread_id)
-
-@bot.message_handler(commands=['szukaj'])
-def explicit_search(m):
-    query = m.text.replace('/szukaj', '').strip()
-    if not query:
-        inteligentna_odpowiedz(m.chat.id, "🌐 Co mam wyszukać? Użyj: `/szukaj najnowsze modele LLM`", m.message_thread_id, parse_mode="Markdown")
-        return
-        
-    bot.send_chat_action(m.chat.id, 'typing')
-    results = search_brave_pro(query, count=5)
+# ==========================================
+# 5. HANDLERY TELEGRAMA (KRYPTO & ALERTY)
+# ==========================================
+@bot.message_handler(commands=['cena'])
+def check_price(m):
+    if not kucoin: return inteligentna_odpowiedz(m.chat.id, "❌ KuCoin offline.", m.message_thread_id)
+    parts = m.text.upper().split()
+    if len(parts) < 2: return inteligentna_odpowiedz(m.chat.id, "📊 Użyj: `/cena BTC/USDT`", m.message_thread_id, parse_mode="Markdown")
     
-    if results:
-        inteligentna_odpowiedz(m.chat.id, f"🌐 **Wyniki z Brave:**\n\n{results}", m.message_thread_id, parse_mode="Markdown", disable_preview=True)
-    else:
-        inteligentna_odpowiedz(m.chat.id, "❌ Brak wyników lub błąd API Brave.", m.message_thread_id)
-
-@bot.message_handler(commands=['github'])
-def github_search(m):
-    query = m.text.replace('/github', '').strip()
-    if not query:
-        inteligentna_odpowiedz(m.chat.id, "🐙 Co wyszukać? Użyj: `/github telebot python`", m.message_thread_id, parse_mode="Markdown")
-        return
-
-    bot.send_chat_action(m.chat.id, 'typing')
-    headers = {"Accept": "application/vnd.github.v3+json"}
-    if GITHUB_TOKEN: headers["Authorization"] = f"token {GITHUB_TOKEN}"
-
+    symbol = parts[1]
     try:
-        url = f"https://api.github.com/search/repositories?q={query}&sort=stars&order=desc&per_page=3"
-        response = requests.get(url, headers=headers)
-        data = response.json()
-
-        if response.status_code == 200 and data.get('items'):
-            text = f"🐙 **Top wyniki GitHub dla '{query}':**\n\n"
-            for repo in data['items']:
-                text += f"🔹 [{repo['full_name']}]({repo['html_url']}) (⭐ {repo['stargazers_count']})\n   {repo.get('description', 'Brak opisu')}\n\n"
-            inteligentna_odpowiedz(m.chat.id, text, m.message_thread_id, parse_mode="Markdown", disable_preview=True)
-        else:
-            inteligentna_odpowiedz(m.chat.id, "❌ Nie znaleziono repozytoriów.", m.message_thread_id)
+        ticker = kucoin.fetch_ticker(symbol)
+        inteligentna_odpowiedz(m.chat.id, f"📈 **{symbol}**: `{ticker['last']}`", m.message_thread_id, parse_mode="Markdown")
     except Exception as e:
-        inteligentna_odpowiedz(m.chat.id, f"❌ Błąd GitHub: {str(e)}", m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, f"❌ Błąd (zły symbol?): {str(e)}", m.message_thread_id)
+
+@bot.message_handler(commands=['alert'])
+def set_alert(m):
+    if m.from_user.id != ADMIN_ID: return inteligentna_odpowiedz(m.chat.id, "🚫 Tylko Admin.", m.message_thread_id)
+    if not kucoin or not DB_URL: return inteligentna_odpowiedz(m.chat.id, "❌ Błąd bazy lub KuCoin.", m.message_thread_id)
+    
+    parts = m.text.upper().split()
+    if len(parts) < 3: return inteligentna_odpowiedz(m.chat.id, "🔔 Użyj: `/alert BTC/USDT 100000`", m.message_thread_id, parse_mode="Markdown")
+    
+    symbol = parts[1]
+    try:
+        target = float(parts[2])
+        current = kucoin.fetch_ticker(symbol)['last']
+        direction = 'UP' if target > current else 'DOWN'
+        
+        with psycopg2.connect(DB_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute("INSERT INTO alerts (user_id, symbol, target_price, direction) VALUES (%s, %s, %s, %s)", 
+                            (m.from_user.id, symbol, target, direction))
+        
+        msg = f"✅ **Zapisano alert!**\nObecna cena {symbol}: `{current}`\nPowiadomię Cię, gdy {'wzrośnie do' if direction=='UP' else 'spadnie do'} `{target}`."
+        inteligentna_odpowiedz(m.chat.id, msg, m.message_thread_id, parse_mode="Markdown")
+    except Exception as e:
+        inteligentna_odpowiedz(m.chat.id, f"❌ Błąd: {str(e)}", m.message_thread_id)
+
+@bot.message_handler(commands=['alerty'])
+def list_alerts(m):
+    if m.from_user.id != ADMIN_ID: return inteligentna_odpowiedz(m.chat.id, "🚫 Tylko Admin.", m.message_thread_id)
+    try:
+        with psycopg2.connect(DB_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, symbol, target_price, direction FROM alerts WHERE user_id = %s", (m.from_user.id,))
+                alerts = cur.fetchall()
+        
+        if not alerts: return inteligentna_odpowiedz(m.chat.id, "🔕 Brak aktywnych alertów.", m.message_thread_id)
+        
+        text = "🔔 **Twoje Alerty:**\n"
+        for a in alerts:
+            text += f"ID: {a[0]} | {a[1]} -> {'📈' if a[3]=='UP' else '📉'} `{a[2]}`\n"
+        inteligentna_odpowiedz(m.chat.id, text, m.message_thread_id, parse_mode="Markdown")
+    except Exception as e:
+        inteligentna_odpowiedz(m.chat.id, f"❌ Błąd DB: {str(e)}", m.message_thread_id)
 
 @bot.message_handler(commands=['balance'])
 def check_balance(m):
-    if m.from_user.id != ADMIN_ID:
-        inteligentna_odpowiedz(m.chat.id, "🚫 Brak dostępu. Zła autoryzacja ID.", m.message_thread_id)
-        return
-        
-    if not kucoin:
-        inteligentna_odpowiedz(m.chat.id, "❌ Błąd: Brak kluczy KuCoin lub błąd połączenia.", m.message_thread_id)
-        return
+    if m.from_user.id != ADMIN_ID: return inteligentna_odpowiedz(m.chat.id, "🚫 Brak dostępu.", m.message_thread_id)
+    if not kucoin: return inteligentna_odpowiedz(m.chat.id, "❌ Błąd KuCoin.", m.message_thread_id)
 
     bot.send_chat_action(m.chat.id, 'typing')
     try:
@@ -225,31 +210,95 @@ def check_balance(m):
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"❌ Błąd KuCoin: {str(e)}", m.message_thread_id)
 
+# ==========================================
+# 6. HANDLERY TELEGRAMA (AI & NARZĘDZIA)
+# ==========================================
+@bot.message_handler(commands=['start'])
+def welcome(m):
+    update_user_db(m.from_user.id, m.from_user.username, lang='EN', model='llama-3.3-70b-versatile')
+    user_history[m.from_user.id] = []
+    msg = (
+        "Welcome to GentelmeN@CorE! 🎩\n\n"
+        "🛠️ **System:**\n"
+        "/en | /pl - Język AI\n"
+        "/llama | /fast | /qwen - Mózg AI\n"
+        "/reset - Czysta karta\n\n"
+        "🚀 **Narzędzia:**\n"
+        "/szukaj [hasło] - Wyszukiwarka PRO\n"
+        "/github [hasło] - Repozytoria\n"
+        "/rysuj [opis] - Sztuka (HF PRO)\n\n"
+        "📈 **Krypto:**\n"
+        "/cena [symbol] - Np. BTC/USDT\n"
+        "/alert [sym] [cena] - Dodaj powiadomienie\n"
+        "/alerty - Lista alarmów\n"
+        "/balance - Portfel KuCoin"
+    )
+    inteligentna_odpowiedz(m.chat.id, msg, m.message_thread_id, parse_mode="Markdown")
+
+@bot.message_handler(commands=['reset', 'clear'])
+def reset_memory(m):
+    user_history[m.from_user.id] = []
+    inteligentna_odpowiedz(m.chat.id, "🧠 Moja pamięć została wyczyszczona. Zaczynamy od nowa!", m.message_thread_id)
+
+@bot.message_handler(commands=['en', 'pl'])
+def change_language(m):
+    new_lang = 'EN' if 'EN' in m.text.upper() else 'PL'
+    update_user_db(m.from_user.id, m.from_user.username, lang=new_lang)
+    inteligentna_odpowiedz(m.chat.id, "Language: English 🇬🇧" if new_lang == 'EN' else "Język: Polski 🇵🇱", m.message_thread_id)
+
+@bot.message_handler(commands=['llama', 'fast', 'qwen'])
+def change_model(m):
+    cmd = m.text.lower()
+    model_map = {'/llama': 'llama-3.3-70b-versatile', '/fast': 'llama-3.1-8b-instant', '/qwen': 'qwen-2.5-32b'}
+    sel_model = model_map.get(cmd, 'llama-3.3-70b-versatile')
+    update_user_db(m.from_user.id, m.from_user.username, model=sel_model)
+    inteligentna_odpowiedz(m.chat.id, f"🚀 Model przełączony: `{sel_model}`", m.message_thread_id, parse_mode="Markdown")
+
+@bot.message_handler(commands=['szukaj'])
+def explicit_search(m):
+    query = m.text.replace('/szukaj', '').strip()
+    if not query: return inteligentna_odpowiedz(m.chat.id, "🌐 Użyj: `/szukaj ai news`", m.message_thread_id, parse_mode="Markdown")
+    bot.send_chat_action(m.chat.id, 'typing')
+    results = search_brave_pro(query, count=5)
+    inteligentna_odpowiedz(m.chat.id, f"🌐 **Wyniki z Brave:**\n\n{results}" if results else "❌ Brak wyników.", m.message_thread_id, parse_mode="Markdown", disable_preview=True)
+
+@bot.message_handler(commands=['github'])
+def github_search(m):
+    query = m.text.replace('/github', '').strip()
+    if not query: return inteligentna_odpowiedz(m.chat.id, "🐙 Użyj: `/github python bot`", m.message_thread_id, parse_mode="Markdown")
+    bot.send_chat_action(m.chat.id, 'typing')
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    if GITHUB_TOKEN: headers["Authorization"] = f"token {GITHUB_TOKEN}"
+    try:
+        url = f"https://api.github.com/search/repositories?q={query}&sort=stars&order=desc&per_page=3"
+        response = requests.get(url, headers=headers).json()
+        if response.get('items'):
+            text = f"🐙 **GitHub dla '{query}':**\n\n"
+            for r in response['items']:
+                text += f"🔹 [{r['full_name']}]({r['html_url']}) (⭐ {r['stargazers_count']})\n   {r.get('description', '')}\n\n"
+            inteligentna_odpowiedz(m.chat.id, text, m.message_thread_id, parse_mode="Markdown", disable_preview=True)
+        else:
+            inteligentna_odpowiedz(m.chat.id, "❌ Brak repozytoriów.", m.message_thread_id)
+    except Exception as e:
+        inteligentna_odpowiedz(m.chat.id, f"❌ Błąd GitHub: {str(e)}", m.message_thread_id)
+
 @bot.message_handler(commands=['rysuj'])
 def generate_image(m):
     prompt = m.text.replace('/rysuj', '').strip()
-    if not prompt:
-        inteligentna_odpowiedz(m.chat.id, "🎨 Co narysować? Użyj: `/rysuj cyberpunk cat`", m.message_thread_id, parse_mode="Markdown")
-        return
-        
-    if not HF_TOKEN:
-        inteligentna_odpowiedz(m.chat.id, "❌ Brak zmiennej HF_TOKEN.", m.message_thread_id)
-        return
+    if not prompt: return inteligentna_odpowiedz(m.chat.id, "🎨 Użyj: `/rysuj cyber cat`", m.message_thread_id, parse_mode="Markdown")
+    if not HF_TOKEN: return inteligentna_odpowiedz(m.chat.id, "❌ Brak HF_TOKEN.", m.message_thread_id)
 
-    inteligentna_odpowiedz(m.chat.id, f"🎨 Maluję (PRO): '{prompt}'...", m.message_thread_id)
+    inteligentna_odpowiedz(m.chat.id, f"🎨 Maluję: '{prompt}'...", m.message_thread_id)
     bot.send_chat_action(m.chat.id, 'upload_photo')
     
     API_URL = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    
     try:
         response = requests.post(API_URL, headers=headers, json={"inputs": prompt})
         if response.status_code == 200:
-            image_bytes = io.BytesIO(response.content)
-            bot.send_photo(m.chat.id, image_bytes, reply_to_message_id=m.message_id)
+            bot.send_photo(m.chat.id, io.BytesIO(response.content), reply_to_message_id=m.message_id)
         else:
-            error_msg = response.json().get('error', 'Nieznany błąd')
-            inteligentna_odpowiedz(m.chat.id, f"❌ Błąd serwera HF: {error_msg}", m.message_thread_id)
+            inteligentna_odpowiedz(m.chat.id, f"❌ Błąd HF: {response.json().get('error')}", m.message_thread_id)
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"❌ Błąd: {str(e)}", m.message_thread_id)
 
@@ -259,19 +308,16 @@ def handle_voice(m):
     try:
         file_info = bot.get_file(m.voice.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-        
         with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as temp_audio:
             temp_audio.write(downloaded_file)
-            temp_file_name = temp_audio.name
+            temp_name = temp_audio.name
 
-        with open(temp_file_name, "rb") as audio_file:
-            transcription = groq_client.audio.transcriptions.create(file=(temp_file_name, audio_file.read()), model="whisper-large-v3")
+        with open(temp_name, "rb") as f:
+            transcription = groq_client.audio.transcriptions.create(file=(temp_name, f.read()), model="whisper-large-v3")
         
-        user_text = transcription.text
-        os.remove(temp_file_name)
-        
-        inteligentna_odpowiedz(m.chat.id, f"🎙️ *Usłyszałem:* {user_text}", m.message_thread_id, parse_mode="Markdown")
-        m.text = user_text
+        os.remove(temp_name)
+        inteligentna_odpowiedz(m.chat.id, f"🎙️ *Usłyszałem:* {transcription.text}", m.message_thread_id, parse_mode="Markdown")
+        m.text = transcription.text
         ai_chat(m)
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"❌ Błąd głosu: {str(e)}", m.message_thread_id)
@@ -282,27 +328,59 @@ def ai_chat(m):
     user_id = m.from_user.id
     user_lang, user_model = get_user_data(user_id)
     
-    if user_lang == 'EN':
-        sys_msg = "You are GentelmeN@CorE, a sovereign digital entity. Speak ONLY English. Never apologize. Format your output nicely."
-    else:
-        sys_msg = "Jesteś GentelmeN@CorE, suwerennym bytem cyfrowym. Mów TYLKO po polsku. Nigdy nie przepraszaj. Formatuj ładnie tekst (Markdown)."
+    sys_msg = "Jesteś GentelmeN@CorE. Mów po polsku." if user_lang == 'PL' else "You are GentelmeN@CorE. Speak English."
     
-    if any(word in m.text.lower() for word in ["cena", "news", "bitcoin", "kurs", "price", "today"]):
+    if any(w in m.text.lower() for w in ["cena", "news", "bitcoin", "kurs", "price"]):
         web_info = search_brave_pro(m.text, count=2)
-        if web_info: sys_msg += f"\nOto aktualne dane z sieci (użyj ich do odpowiedzi):\n{web_info}"
+        if web_info: sys_msg += f"\nNet Info:\n{web_info}"
 
     if user_id not in user_history: user_history[user_id] = []
     user_history[user_id].append({"role": "user", "content": m.text})
     messages = [{"role": "system", "content": sys_msg}] + user_history[user_id]
 
     try:
-        completion = groq_client.chat.completions.create(messages=messages, model=user_model)
-        reply = completion.choices[0].message.content
+        reply = groq_client.chat.completions.create(messages=messages, model=user_model).choices[0].message.content
         user_history[user_id].append({"role": "assistant", "content": reply})
         if len(user_history[user_id]) > MAX_HISTORY: user_history[user_id] = user_history[user_id][-MAX_HISTORY:]
         inteligentna_odpowiedz(m.chat.id, reply, m.message_thread_id, parse_mode="Markdown")
     except Exception as e:
-        inteligentna_odpowiedz(m.chat.id, f"❌ Error Groq: {str(e)}", m.message_thread_id)
+        inteligentna_odpowiedz(m.chat.id, f"❌ Błąd AI: {str(e)}", m.message_thread_id)
+
+# ==========================================
+# 7. WĄTEK W TLE: MONITOROWANIE CEN KRYPTO
+# ==========================================
+def price_monitor():
+    while True:
+        time.sleep(60) # Sprawdza co 60 sekund
+        if not kucoin or not DB_URL: continue
+        try:
+            with psycopg2.connect(DB_URL) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT id, user_id, symbol, target_price, direction FROM alerts")
+                    alerts = cur.fetchall()
+                    
+                    if not alerts: continue
+                    
+                    symbols = list(set([a[2] for a in alerts]))
+                    tickers = kucoin.fetch_tickers(symbols)
+                    
+                    for aid, uid, sym, target, direction in alerts:
+                        if sym in tickers:
+                            curr_price = float(tickers[sym]['last'])
+                            target = float(target)
+                            
+                            # Logika uderzenia w próg
+                            hit = (direction == 'UP' and curr_price >= target) or (direction == 'DOWN' and curr_price <= target)
+                            
+                            if hit:
+                                bot.send_message(uid, f"🚨 **ALERT CENOWY!** 🚨\n\n🎯 Przebito próg dla **{sym}**!\n💰 Aktualna cena: `{curr_price}`", parse_mode="Markdown")
+                                cur.execute("DELETE FROM alerts WHERE id = %s", (aid,))
+                                conn.commit()
+        except Exception as e:
+            print(f"Błąd monitora cen: {e}")
+
+# Uruchomienie monitora w osobnym wątku
+threading.Thread(target=price_monitor, daemon=True).start()
 
 print("🚀 Bot się uruchamia... Czekam na zamknięcie starych procesów Railway...")
 time.sleep(5)
