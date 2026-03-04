@@ -3,3 +3,4 @@ requests
 groq
 ccxt
 psycopg2-binary
+pytest
