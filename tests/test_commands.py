@@ -8,6 +8,8 @@ import sys
 import unittest
 from unittest.mock import MagicMock, call, patch
 
+import requests
+
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
@@ -200,7 +202,7 @@ class TestSearchBrave(unittest.TestCase):
         self.assertIn("T1", result)
         self.assertIn("D1", result)
 
-    @patch("core.integrations.requests.get", side_effect=__import__('requests').RequestException)
+    @patch("core.integrations.requests.get", side_effect=requests.RequestException)
     def test_request_exception_returns_empty(self, _):
         self._integ.BRAVE_KEY = "key"
         result = self._integ.search_brave("query")
@@ -262,14 +264,14 @@ class TestGenerateImageHf(unittest.TestCase):
         self.assertIsNone(image)
         self.assertIn("503", error)
 
-    @patch("core.integrations.requests.post", side_effect=__import__('requests').Timeout)
+    @patch("core.integrations.requests.post", side_effect=requests.Timeout)
     def test_timeout_returns_timeout_message(self, _):
         self._integ.HF_TOKEN = "tok"
         image, error = self._integ.generate_image_hf("cat")
         self.assertIsNone(image)
         self.assertIn("timeout", error.lower())
 
-    @patch("core.integrations.requests.post", side_effect=__import__('requests').ConnectionError("conn"))
+    @patch("core.integrations.requests.post", side_effect=requests.ConnectionError("conn"))
     def test_request_exception_returns_error(self, _):
         self._integ.HF_TOKEN = "tok"
         image, error = self._integ.generate_image_hf("cat")
