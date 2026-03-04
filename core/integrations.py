@@ -26,11 +26,12 @@ def search_brave(query):
         url = "https://api.search.brave.com/res/v1/web/search"
         headers = {"Accept": "application/json", "X-Subscription-Token": BRAVE_KEY}
         params = {"q": query, "count": 3}
-        response = requests.get(url, headers=headers, params=params)
+        response = requests.get(url, headers=headers, params=params, timeout=5)
+        response.raise_for_status()
         data = response.json()
         results = [f"{r['title']}: {r['description']}" for r in data.get('web', {}).get('results', [])]
         return "\n".join(results) if results else ""
-    except Exception:
+    except requests.RequestException:
         return ""
 
 
