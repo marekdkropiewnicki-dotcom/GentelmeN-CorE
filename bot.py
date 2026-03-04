@@ -1,4 +1,3 @@
-
 import telebot
 import ccxt
 import os
@@ -27,8 +26,8 @@ except:
     kucoin = None
 
 user_history = {}
-user_prefs = {} 
-user_models = {} 
+user_prefs = {}
+user_models = {}
 MAX_HISTORY = 6
 
 def init_db():
@@ -128,17 +127,14 @@ def change_model(m):
     update_user_db(m.from_user.id, m.from_user.username, model=selected_model)
     inteligentna_odpowiedz(m.chat.id, f"🚀 Brain switched to: {selected_model}", m.message_thread_id)
 
-# ----------------- KUCOIN -----------------
 @bot.message_handler(commands=['balance'])
 def check_balance(m):
     if m.from_user.username != "GentelmeN_CorE":
         inteligentna_odpowiedz(m.chat.id, f"🚫 Brak dostępu. Twój username to: {m.from_user.username}", m.message_thread_id)
         return
-        
     if not kucoin:
         inteligentna_odpowiedz(m.chat.id, "❌ Błąd: Brak kluczy KuCoin w Railway.", m.message_thread_id)
         return
-
     inteligentna_odpowiedz(m.chat.id, "🔄 Łączę się z KuCoin...", m.message_thread_id)
     try:
         balance = kucoin.fetch_balance()
@@ -149,23 +145,18 @@ def check_balance(m):
     except Exception as e:
         inteligentna_odpowiedz(m.chat.id, f"❌ Błąd KuCoin: {str(e)}", m.message_thread_id)
 
-# ----------------- HUGGING FACE (OBRAZY) -----------------
 @bot.message_handler(commands=['rysuj'])
 def generate_image(m):
     prompt = m.text.replace('/rysuj', '').strip()
     if not prompt:
         inteligentna_odpowiedz(m.chat.id, "🎨 Co mam narysować? Użyj: /rysuj cyberpunkowy kot", m.message_thread_id)
         return
-        
     if not HF_TOKEN:
         inteligentna_odpowiedz(m.chat.id, "❌ Brak zmiennej HF_TOKEN w Railway.", m.message_thread_id)
         return
-
     inteligentna_odpowiedz(m.chat.id, f"🎨 Maluję: '{prompt}'... (10-20 sekund)", m.message_thread_id)
-    
     API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    
     try:
         response = requests.post(API_URL, headers=headers, json={"inputs": prompt})
         if response.status_code == 200:
@@ -201,16 +192,13 @@ def ai_chat(m):
         sys_msg = "You are GentelmeN@CorE, a sovereign digital entity. Speak ONLY English. Never apologize."
     else:
         sys_msg = "Jesteś GentelmeN@CorE, suwerennym bytem cyfrowym. Mów TYLKO po polsku. Nigdy nie przepraszaj."
-    
     web_info = ""
     if any(word in m.text.lower() for word in ["cena", "news", "bitcoin", "kurs", "price", "today"]):
         web_info = search_brave(m.text)
         if web_info: sys_msg += f"\nWeb data: {web_info}"
-
     if user_id not in user_history: user_history[user_id] = []
     user_history[user_id].append({"role": "user", "content": m.text})
     messages = [{"role": "system", "content": sys_msg}] + user_history[user_id]
-
     try:
         completion = groq_client.chat.completions.create(messages=messages, model=user_model)
         reply = completion.choices[0].message.content
