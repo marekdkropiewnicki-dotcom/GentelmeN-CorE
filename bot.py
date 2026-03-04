@@ -8,7 +8,7 @@ import io
 import random
 from groq import Groq
 
-# --- KONFIGURACJA ZMIENNYCH ---
+# --- KONFIGURACJA ŚRODOWISKA ---
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GROQ_KEY = os.environ.get("GROQ_KEY")
 BRAVE_KEY = os.environ.get("BRAVE_API_KEY")
@@ -18,7 +18,7 @@ HF_TOKEN = os.environ.get("HF_TOKEN")
 bot = telebot.TeleBot(TOKEN)
 groq_client = Groq(api_key=GROQ_KEY)
 
-# --- KONFIGURACJA KUCOIN ---
+# --- INICJALIZACJA KUCOIN ---
 try:
     kucoin = ccxt.kucoin({
         'apiKey': os.environ.get("KUCOIN_API_KEY"),
@@ -28,13 +28,13 @@ try:
 except:
     kucoin = None
 
-# --- ZMIENNE SESJI ---
+# --- ZMIENNE SESJI I HISTORIA ---
 user_history = {}
 user_prefs = {} 
 user_models = {} 
 MAX_HISTORY = 6
 
-# --- BAZA DANYCH (POSTGRESQL) ---
+# --- BAZA DANYCH POSTGRESQL ---
 def init_db():
     if not DB_URL: return
     try:
@@ -45,8 +45,7 @@ def init_db():
                 user_id BIGINT PRIMARY KEY,
                 username TEXT,
                 language TEXT DEFAULT 'EN',
-                model_name TEXT DEFAULT 'llama-3.3-70b-versatile',
-                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                model_name TEXT DEFAULT 'llama-3.3-70b-versatile'
             )
         """)
         conn.commit()
@@ -68,18 +67,15 @@ def get_user_data(user_id):
         cur.close()
         conn.close()
         if res:
-            user_prefs[user_id] = res[0]
-            user_models[user_id] = res[1]
+            user_prefs[user_id], user_models[user_id] = res[0], res[1]
             return res[0], res[1]
     except: pass
     return 'EN', 'llama-3.3-70b-versatile'
 
 def update_user_db(user_id, username, lang=None, model=None):
-    current_lang, current_model = get_user_data(user_id)
-    new_lang = lang if lang else current_lang
-    new_model = model if model else current_model
-    user_prefs[user_id] = new_lang
-    user_models[user_id] = new_model
+    l, m = get_user_data(user_id)
+    new_l, new_m = (lang or l), (model or m)
+    user_prefs[user_id], user_models[user_id] = new_l, new_m
     if not DB_URL: return
     try:
         conn = psycopg2.connect(DB_URL)
@@ -89,136 +85,123 @@ def update_user_db(user_id, username, lang=None, model=None):
             VALUES (%s, %s, %s, %s) 
             ON CONFLICT (user_id) 
             DO UPDATE SET language = EXCLUDED.language, model_name = EXCLUDED.model_name, username = EXCLUDED.username
-        """, (user_id, username, new_lang, new_model))
+        """, (user_id, username, new_l, new_m))
         conn.commit()
         cur.close()
         conn.close()
     except: pass
 
-# --- BRAVE SEARCH ---
+# --- WYSZUKIWARKA BRAVE ---
 def search_brave(query):
     if not BRAVE_KEY: return ""
     try:
         url = "https://api.search.brave.com/res/v1/web/search"
         headers = {"Accept": "application/json", "X-Subscription-Token": BRAVE_KEY}
-        params = {"q": query, "count": 3}
-        response = requests.get(url, headers=headers, params=params)
+        response = requests.get(url, headers=headers, params={"q": query, "count": 2})
         data = response.json()
         results = [f"{r['title']}: {r['description']}" for r in data.get('web', {}).get('results', [])]
         return "\n".join(results) if results else ""
     except: return ""
 
-def inteligentna_odpowiedz(chat_id, text, thread_id):
-    if thread_id: bot.send_message(chat_id, text, message_thread_id=thread_id)
-    else: bot.send_message(chat_id, text)
-
-# --- KOMENDY ---
+# --- OBSŁUGA KOMEND ---
 @bot.message_handler(commands=['start'])
 def welcome(m):
-    update_user_db(m.from_user.id, m.from_user.username, lang='EN', model='llama-3.3-70b-versatile')
-    user_history[m.from_user.id] = []
-    inteligentna_odpowiedz(m.chat.id, "Welcome to GentelmeN@CorE!\n/en | /pl - language\n/llama | /fast | /qwen - ai brain\n/balance - kucoin\n/rysuj [opis] - image gen", m.message_thread_id)
+    update_user_db(m.from_user.id, m.from_user.username)
+    bot.send_message(m.chat.id, "GentelmeN@CorE online.\n/en | /pl\n/rysuj [opis]\n/balance")
 
 @bot.message_handler(commands=['en', 'pl'])
-def change_language(m):
-    new_lang = 'EN' if 'en' in m.text.lower() else 'PL'
-    update_user_db(m.from_user.id, m.from_user.username, lang=new_lang)
-    msg = "language: english 🇬🇧" if new_lang == 'EN' else "język: polski 🇵🇱"
-    inteligentna_odpowiedz(m.chat.id, msg, m.message_thread_id)
-
-@bot.message_handler(commands=['llama', 'fast', 'qwen'])
-def change_model(m):
-    cmd = m.text.lower()
-    model_map = {'/llama': 'llama-3.3-70b-versatile', '/fast': 'llama-3.1-8b-instant', '/qwen': 'qwen-2.5-32b'}
-    selected_model = model_map.get(cmd, 'llama-3.3-70b-versatile')
-    update_user_db(m.from_user.id, m.from_user.username, model=selected_model)
-    inteligentna_odpowiedz(m.chat.id, f"🚀 brain switched to: {selected_model}", m.message_thread_id)
+def lang(m):
+    new_l = 'EN' if 'en' in m.text.lower() else 'PL'
+    update_user_db(m.from_user.id, m.from_user.username, lang=new_l)
+    bot.send_message(m.chat.id, f"Language set to: {new_l}")
 
 @bot.message_handler(commands=['balance'])
-def check_balance(m):
+def bal(m):
+    # PRZYWRÓCONO: Autoryzacja po username
     if m.from_user.username != "GentelmeN_CorE":
-        inteligentna_odpowiedz(m.chat.id, "🚫 No access.", m.message_thread_id)
+        bot.send_message(m.chat.id, f"🚫 Brak dostępu dla: {m.from_user.username}")
         return
     if not kucoin:
-        inteligentna_odpowiedz(m.chat.id, "❌ Error: KuCoin keys missing.", m.message_thread_id)
+        bot.send_message(m.chat.id, "❌ Błąd: Klucze KuCoin nie są skonfigurowane.")
         return
     try:
-        balance = kucoin.fetch_balance()
-        text = "💰 kucoin balance:\n"
-        for asset, amount in balance['total'].items():
-            if amount > 0: text += f"- {asset}: {amount}\n"
-        inteligentna_odpowiedz(m.chat.id, text, m.message_thread_id)
+        res = kucoin.fetch_balance()
+        txt = "💰 Portfel KuCoin:\n"
+        for asset, amount in res['total'].items():
+            if amount > 0: txt += f"- {asset}: {amount}\n"
+        bot.send_message(m.chat.id, txt)
     except Exception as e:
-        inteligentna_odpowiedz(m.chat.id, f"❌ KuCoin Error: {str(e)}", m.message_thread_id)
+        bot.send_message(m.chat.id, f"❌ Błąd KuCoin: {str(e)}")
 
-# --- GENEROWANIE OBRAZÓW (FLUX.1-schnell via ROUTER) ---
+# --- GENERATOR OBRAZÓW (FLUX) ---
 @bot.message_handler(commands=['rysuj'])
-def generate_image(m):
+def draw(m):
     prompt = m.text.replace('/rysuj', '').strip()
     if not prompt:
-        inteligentna_odpowiedz(m.chat.id, "🎨 co mam narysować?", m.message_thread_id)
+        bot.send_message(m.chat.id, "🎨 Co mam narysować?")
         return
+    bot.send_message(m.chat.id, f"🎨 Maluję: '{prompt}'... (czekaj do 2 min)")
     
-    inteligentna_odpowiedz(m.chat.id, f"🎨 maluję: '{prompt}'... (do 2 min)", m.message_thread_id)
-    
-    API_URL = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
+    API = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     payload = {
         "inputs": prompt,
-        "parameters": {"seed": random.randint(0, 10**6)}
+        "parameters": {"seed": random.randint(1, 10**6)},
+        "options": {"wait_for_model": True}
     }
     
     try:
-        response = requests.post(API_URL, headers=headers, json=payload, timeout=120)
+        # PRZYWRÓCONO: timeout=120
+        response = requests.post(API, headers=headers, json=payload, timeout=120)
         if response.status_code == 200:
-            bot.send_photo(m.chat.id, io.BytesIO(response.content), reply_to_message_id=m.message_id)
+            img = io.BytesIO(response.content)
+            img.seek(0) # NAPRAWA: To zapobiega ucinaniu obrazu
+            bot.send_photo(m.chat.id, img, reply_to_message_id=m.message_id)
         else:
-            inteligentna_odpowiedz(m.chat.id, f"❌ hf error: {response.status_code}", m.message_thread_id)
+            bot.send_message(m.chat.id, f"❌ Błąd API (HF): {response.status_code}")
     except Exception as e:
-        inteligentna_odpowiedz(m.chat.id, f"❌ error: {str(e)}", m.message_thread_id)
+        bot.send_message(m.chat.id, f"❌ Błąd generatora: {str(e)}")
 
 # --- WIADOMOŚCI GŁOSOWE ---
 @bot.message_handler(content_types=['voice'])
-def handle_voice(m):
+def voice(m):
     try:
         file_info = bot.get_file(m.voice.file_id)
-        downloaded_file = bot.download_file(file_info.file_path)
-        file_name = f"voice_{m.chat.id}.ogg"
-        with open(file_name, 'wb') as f: f.write(downloaded_file)
-        with open(file_name, "rb") as audio:
-            transcription = groq_client.audio.transcriptions.create(file=(file_name, audio.read()), model="whisper-large-v3")
-        user_text = transcription.text
-        os.remove(file_name)
-        inteligentna_odpowiedz(m.chat.id, f"🎙️ Usłyszałem: {user_text}", m.message_thread_id)
-        m.text = user_text
-        ai_chat(m)
+        data = bot.download_file(file_info.file_path)
+        with open("voice_tmp.ogg", "wb") as f: f.write(data)
+        with open("voice_tmp.ogg", "rb") as f:
+            tr = groq_client.audio.transcriptions.create(file=("voice_tmp.ogg", f.read()), model="whisper-large-v3")
+        bot.send_message(m.chat.id, f"🎙️ Usłyszałem: {tr.text}")
+        m.text = tr.text
+        chat(m)
+        os.remove("voice_tmp.ogg")
     except Exception as e:
-        inteligentna_odpowiedz(m.chat.id, f"Voice Error: {str(e)}", m.message_thread_id)
+        bot.send_message(m.chat.id, f"❌ Błąd głosówki: {str(e)}")
 
-# --- CHAT AI ---
+# --- CHAT AI (GROQ) ---
 @bot.message_handler(func=lambda m: True)
-def ai_chat(m):
-    user_id = m.from_user.id
-    user_lang, user_model = get_user_data(user_id)
-    sys_msg = "You are GentelmeN@CorE." if user_lang == 'EN' else "Jesteś GentelmeN@CorE."
+def chat(m):
+    uid = m.from_user.id
+    l, model = get_user_data(uid)
+    sys = "You are GentelmeN@CorE." if l == 'EN' else "Jesteś GentelmeN@CorE."
     
-    web_info = ""
-    if any(word in m.text.lower() for word in ["cena", "news", "bitcoin", "price"]):
-        web_info = search_brave(m.text)
-        if web_info: sys_msg += f"\nWeb info: {web_info}"
+    if any(x in m.text.lower() for x in ["cena", "news", "bitcoin", "price"]):
+        web = search_brave(m.text)
+        if web: sys += f"\nAktualne dane z sieci: {web}"
 
-    if user_id not in user_history: user_history[user_id] = []
-    user_history[user_id].append({"role": "user", "content": m.text})
+    if uid not in user_history: user_history[uid] = []
+    user_history[uid].append({"role": "user", "content": m.text})
     
     try:
-        messages = [{"role": "system", "content": sys_msg}] + user_history[user_id][-MAX_HISTORY:]
-        completion = groq_client.chat.completions.create(messages=messages, model=user_model)
-        reply = completion.choices[0].message.content
-        user_history[user_id].append({"role": "assistant", "content": reply})
-        inteligentna_odpowiedz(m.chat.id, reply, m.message_thread_id)
+        res = groq_client.chat.completions.create(
+            messages=[{"role": "system", "content": sys}] + user_history[uid][-MAX_HISTORY:], 
+            model=model
+        )
+        reply = res.choices[0].message.content
+        user_history[uid].append({"role": "assistant", "content": reply})
+        bot.send_message(m.chat.id, reply)
     except Exception as e:
-        inteligentna_odpowiedz(m.chat.id, f"error: {str(e)}", m.message_thread_id)
+        bot.send_message(m.chat.id, f"❌ Błąd AI: {str(e)}")
 
-print("Full system starting...")
-time.sleep(10)
+print("System GentelmeN@CorE przywrócony i gotowy...")
 bot.infinity_polling()
