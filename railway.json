@@ -4,7 +4,7 @@
     "builder": "RAILPACK"
   },
   "deploy": {
-    "startCommand": "python bot.py",
+    "startCommand": "python core/bot.py",
     "runtime": "V2",
     "numReplicas": 1,
     "sleepApplication": false,
