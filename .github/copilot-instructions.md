@@ -147,4 +147,6 @@ python -m pytest tests/ -v
 - Crash cause confirmed: Railway overlap between old and new deployment instances
 - **DATABASE_URL fix**: zmieniono z `{{Postgres.DATABASE_URL}}` na `${{Postgres.DATABASE_URL}}` — `$` jest wymagane!
 - **AI chat crash fix**: usunięto `parse_mode="Markdown"` z `ai_chat()` w `core/commands.py` — Groq zwraca niesformatowany Markdown który łamie Telegram API (error 400: can't parse entities)
-- Bot działa poprawnie po tych fixach ✅
+- **PR #6 zmergowany** — fix na produkcji, deployment `e0f01c1f` działa
+- **Przetestowano**: bot odpowiada na pytania o kryptowaluty bez crashu ✅
+- Bot stabilny na koniec sesji ✅
