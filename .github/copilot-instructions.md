@@ -10,6 +10,7 @@
 - GitHub repository search
 - AI image generation via Hugging Face Inference API (FLUX.1-schnell)
 - Per-user language (EN/PL) and model preferences stored in PostgreSQL
+- `/balance` command restricted to OWNER only (via `OWNER_USER_ID` env variable)
 
 ## Repository Structure
 
@@ -17,6 +18,9 @@
 bot.py           # Main bot entry point (all logic lives here)
 railway.json     # Railway deployment config (runs `python bot.py`)
 requirements.txt # Python dependencies
+configs/         # Configuration files
+core/            # Core modules
+tests/           # Tests
 .github/
   copilot-instructions.md
 ```
@@ -45,6 +49,7 @@ All secrets are loaded from environment variables — never hard-code them:
 | `KUCOIN_SECRET`     | KuCoin exchange secret                       |
 | `KUCOIN_PASSWORD`   | KuCoin exchange passphrase                   |
 | `ADMIN_ID`          | Telegram user ID of the bot admin            |
+| `OWNER_USER_ID`     | Telegram user ID of the owner (for /balance) |
 
 ## Dependencies (`requirements.txt`)
 
@@ -67,6 +72,7 @@ pip install -r requirements.txt
 - **Telegram replies**: Use `inteligentna_odpowiedz()` helper for all outgoing messages so that Telegram Supergroup thread IDs (`message_thread_id`) are handled correctly.
 - **No secrets in code**: Read every credential from `os.environ.get(...)`.
 - **Background threads**: Long-running tasks (e.g. price monitor) run as daemon threads so they don't block bot shutdown.
+- **Access control**: `/balance` and other sensitive commands check `OWNER_USER_ID` before executing.
 
 ## Adding New Commands
 
@@ -76,6 +82,19 @@ pip install -r requirements.txt
 4. Add the new command to the `/start` welcome message.
 5. Handle all exceptions and reply with a clear error.
 
+## Known Issues (as of 2026-03-05)
+
+- **HF image generation** (`/rysuj`): Returns 410 error — model FLUX.1-schnell may have changed endpoint. Needs new HF model or updated API call.
+- **Voice → /rysuj**: Voice messages are not being forwarded to image generation handler. Bug to fix.
+
 ## Testing
 
 There is no automated test suite in the repository. Manual testing is done by running the bot against a real Telegram bot token. When adding significant logic, consider adding unit tests using `pytest` (which is not yet a listed dependency — add it to `requirements.txt` if tests are introduced).
+
+## Session History
+
+### 2026-03-05
+- Added `OWNER_USER_ID` env variable in Railway to restrict `/balance` to owner only
+- Identified HF 410 error on `/rysuj` (image generation)
+- Identified voice message → `/rysuj` bug
+- Added `.github/copilot-instructions.md` as Copilot memory
