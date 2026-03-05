@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**GentelmeN-CorE** is a Telegram bot written in Python. It provides:
+**GeNCorE** is a Telegram bot written in Python. It provides:
 - AI chat powered by [Groq](https://groq.com/) (models: `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `qwen-2.5-32b`)
 - Voice message transcription via Groq Whisper
 - Cryptocurrency price checks and price-alert monitoring via KuCoin (ccxt)
@@ -11,6 +11,12 @@
 - AI image generation via Hugging Face Inference API (FLUX.1-schnell)
 - Per-user language (EN/PL) and model preferences stored in PostgreSQL
 - `/balance` command restricted to OWNER only (via `OWNER_USER_ID` env variable)
+
+## Naming Convention
+
+The canonical project name is **GeNCorE**.
+All references in code, messages, comments and documentation must use `GeNCorE`.
+Do NOT use: `GentelmeN-CorE`, `GentelmeN@CorE`, `GentelmenCore`, `Gentlemen_CorE`, `GentelmeN_CorE` etc.
 
 ## Repository Structure
 
@@ -98,3 +104,4 @@ There is no automated test suite in the repository. Manual testing is done by ru
 - Identified HF 410 error on `/rysuj` (image generation)
 - Identified voice message → `/rysuj` bug
 - Added `.github/copilot-instructions.md` as Copilot memory
+- Established canonical project name: **GeNCorE** (replaces all variants like GentelmeN-CorE, GentelmeN@CorE, GentelmenCore etc.).
