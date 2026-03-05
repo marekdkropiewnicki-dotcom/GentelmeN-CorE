@@ -9,5 +9,7 @@ The bot logic has been refactored into the core/ package:
   core/integrations.py - External API integrations (KuCoin, Brave, HuggingFace)
 """
 import runpy
+from pathlib import Path
 
-runpy.run_path('core/bot.py')
+base_dir = Path(__file__).resolve().parent
+runpy.run_path(str(base_dir / "core" / "bot.py"))
