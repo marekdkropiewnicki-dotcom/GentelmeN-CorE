@@ -81,12 +81,12 @@ def price_monitor():
 threading.Thread(target=price_monitor, daemon=True).start()
 
 print("🚀 Bot się uruchamia... Czekam na zamknięcie starych procesów Railway...")
-time.sleep(5)
+time.sleep(15)
 print("✅ GeNCorE Online!")
 
 while True:
     try:
         bot.infinity_polling(timeout=60, long_polling_timeout=60)
     except Exception as e:
-        print(f"⚠️ Polling crash: {e} — restarting in 5s...")
-        time.sleep(5)
+        print(f"⚠️ Polling crash: {e} — restarting in 15s...")
+        time.sleep(15)
