@@ -327,7 +327,7 @@ def ai_chat(m):
         user_history[user_id].append({"role": "assistant", "content": reply})
         if len(user_history[user_id]) > MAX_HISTORY:
             user_history[user_id] = user_history[user_id][-MAX_HISTORY:]
-        inteligentna_odpowiedz(_bot, m.chat.id, reply, m.message_thread_id, parse_mode="Markdown")
+        inteligentna_odpowiedz(_bot, m.chat.id, reply, m.message_thread_id)
     except Exception as e:
         inteligentna_odpowiedz(_bot, m.chat.id, f"❌ Błąd AI: {str(e)}", m.message_thread_id)
 
