@@ -110,13 +110,12 @@ pip install -r requirements.txt
 
 - **HF image generation** (`/rysuj`): Returns 410 error — model FLUX.1-schnell may have changed endpoint. Needs new HF model or updated API call.
 - **Voice → /rysuj**: Voice messages are not being forwarded to image generation handler. Bug to fix.
-- **App crash on Railway**: App crashed (2026-03-05) — cause under investigation.
+- **Railway 409 Conflict**: Fixed — was caused by Railway starting new instance before old one stopped. Fix: `time.sleep(15)` at startup + `while True` loop around `infinity_polling`.
 
 ## Pending Work
 
 - [ ] Fix `/rysuj` — find working HF model / updated endpoint
 - [ ] Fix voice → `/rysuj` forwarding bug
-- [ ] Investigate and fix Railway crash
 - [ ] Rename all `GentelmeN@CorE` references in code to `GeNCorE`
 - [ ] Review and merge 4 pending Copilot branches:
   - `copilot/add-multilanguage-support` (es, de, fr, ru, uk, zh)
@@ -140,6 +139,9 @@ python -m pytest tests/ -v
 - Added `.github/copilot-instructions.md` as Copilot memory
 - Established canonical project name: **GeNCorE**
 - Full repo audit completed (all files reviewed)
-- App crashed on Railway — cause unknown, under investigation
 - Added Project Vision to this file
 - Added Development Environment note: working on iPhone (iOS)
+- **Railway crash diagnosed**: Error 409 Conflict — two bot instances running simultaneously during redeploy
+- **Fix applied**: `time.sleep(5)` → `time.sleep(15)` at startup; `infinity_polling` wrapped in `while True` + `try/except`
+- Crash cause confirmed: Railway overlap between old and new deployment instances
+- Awaiting confirmation that fix resolves the 409 error
