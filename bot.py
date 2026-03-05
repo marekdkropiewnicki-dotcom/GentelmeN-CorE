@@ -42,6 +42,30 @@ user_history = {}
 user_prefs = {} 
 user_models = {} 
 
+# Mapa języków: komenda -> (kod języka, komunikat)
+LANG_MAP = {
+    '/en': ('EN', 'Language: English 🇬🇧'),
+    '/pl': ('PL', 'Język: Polski 🇵🇱'),
+    '/es': ('ES', 'Idioma: Español 🇪🇸'),
+    '/de': ('DE', 'Sprache: Deutsch 🇩🇪'),
+    '/fr': ('FR', 'Langue: Français 🇫🇷'),
+    '/ru': ('RU', 'Язык: Русский 🇷🇺'),
+    '/uk': ('UK', 'Мова: Українська 🇺🇦'),
+    '/zh': ('ZH', '语言：中文 🇨🇳'),
+}
+
+# Systemowe prompty dla każdego języka
+LANG_PROMPTS = {
+    'PL': "Jesteś GeNCorE. Mów po polsku.",
+    'EN': "You are GeNCorE. Speak English.",
+    'ES': "Eres GeNCorE. Habla en español.",
+    'DE': "Du bist GeNCorE. Sprich auf Deutsch.",
+    'FR': "Tu es GeNCorE. Parle en français.",
+    'RU': "Ты GeNCorE. Говори по-русски.",
+    'UK': "Ти GeNCorE. Говори українською.",
+    'ZH': "你是GeNCorE。请用中文回答。",
+}
+
 # ==========================================
 # 3. BAZA DANYCH (POSTGRESQL) - TERAZ Z ALERTAMI
 # ==========================================
@@ -218,9 +242,9 @@ def welcome(m):
     update_user_db(m.from_user.id, m.from_user.username, lang='EN', model='llama-3.3-70b-versatile')
     user_history[m.from_user.id] = []
     msg = (
-        "Welcome to GentelmeN@CorE! 🎩\n\n"
+        "Welcome to GeNCorE! 🎩\n\n"
         "🛠️ **System:**\n"
-        "/en | /pl - Język AI\n"
+        "/en | /pl | /es | /de | /fr | /ru | /uk | /zh - Język AI\n"
         "/llama | /fast | /qwen - Mózg AI\n"
         "/reset - Czysta karta\n\n"
         "🚀 **Narzędzia:**\n"
@@ -240,11 +264,13 @@ def reset_memory(m):
     user_history[m.from_user.id] = []
     inteligentna_odpowiedz(m.chat.id, "🧠 Moja pamięć została wyczyszczona. Zaczynamy od nowa!", m.message_thread_id)
 
-@bot.message_handler(commands=['en', 'pl'])
+@bot.message_handler(commands=['en', 'pl', 'es', 'de', 'fr', 'ru', 'uk', 'zh'])
 def change_language(m):
-    new_lang = 'EN' if 'EN' in m.text.upper() else 'PL'
-    update_user_db(m.from_user.id, m.from_user.username, lang=new_lang)
-    inteligentna_odpowiedz(m.chat.id, "Language: English 🇬🇧" if new_lang == 'EN' else "Język: Polski 🇵🇱", m.message_thread_id)
+    parts = m.text.lower().split()
+    cmd = parts[0] if parts else '/en'
+    lang_code, lang_msg = LANG_MAP.get(cmd, ('EN', 'Language: English 🇬🇧'))
+    update_user_db(m.from_user.id, m.from_user.username, lang=lang_code)
+    inteligentna_odpowiedz(m.chat.id, lang_msg, m.message_thread_id)
 
 @bot.message_handler(commands=['llama', 'fast', 'qwen'])
 def change_model(m):
@@ -328,7 +354,7 @@ def ai_chat(m):
     user_id = m.from_user.id
     user_lang, user_model = get_user_data(user_id)
     
-    sys_msg = "Jesteś GentelmeN@CorE. Mów po polsku." if user_lang == 'PL' else "You are GentelmeN@CorE. Speak English."
+    sys_msg = LANG_PROMPTS.get(user_lang, LANG_PROMPTS['EN'])
     
     if any(w in m.text.lower() for w in ["cena", "news", "bitcoin", "kurs", "price"]):
         web_info = search_brave_pro(m.text, count=2)
@@ -384,5 +410,5 @@ threading.Thread(target=price_monitor, daemon=True).start()
 
 print("🚀 Bot się uruchamia... Czekam na zamknięcie starych procesów Railway...")
 time.sleep(5)
-print("✅ GentelmeN@CorE Online!")
+print("✅ GeNCorE Online!")
 bot.infinity_polling(timeout=60, long_polling_timeout=60)
