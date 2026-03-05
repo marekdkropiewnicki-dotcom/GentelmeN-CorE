@@ -29,7 +29,7 @@ def search_brave(query, count=3):
 def generate_image_hf(prompt):
     if not HF_TOKEN:
         return None, "❌ Brak HF_TOKEN."
-    api_url = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
+    api_url = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     try:
         response = requests.post(

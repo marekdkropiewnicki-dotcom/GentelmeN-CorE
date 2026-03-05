@@ -411,6 +411,84 @@ class TestHandleVoice(unittest.TestCase):
         if created_path:
             self.assertFalse(_os.path.exists(created_path[0]))
 
+    def test_voice_rysuj_routes_to_generate_image(self):
+        self.bot.get_file.return_value = MagicMock()
+        self.bot.download_file.return_value = b"ogg_data"
+        mock_transcript = MagicMock()
+        mock_transcript.text = "rysuj cyber cat"
+        self.groq.audio.transcriptions.create.return_value = mock_transcript
+
+        m = MagicMock()
+        m.voice.file_id = "fid"
+        m.chat.id = 1
+        m.message_thread_id = None
+        m.from_user.id = 1
+
+        with patch("core.commands.generate_image") as mock_gen:
+            with patch("core.commands.ai_chat") as mock_ai:
+                self._cmds.handle_voice(m)
+        mock_gen.assert_called_once_with(m)
+        mock_ai.assert_not_called()
+        self.assertEqual(m.text, "/rysuj cyber cat")
+
+    def test_voice_rysuj_with_slash_routes_to_generate_image(self):
+        self.bot.get_file.return_value = MagicMock()
+        self.bot.download_file.return_value = b"ogg_data"
+        mock_transcript = MagicMock()
+        mock_transcript.text = "/rysuj dragon"
+        self.groq.audio.transcriptions.create.return_value = mock_transcript
+
+        m = MagicMock()
+        m.voice.file_id = "fid"
+        m.chat.id = 1
+        m.message_thread_id = None
+        m.from_user.id = 1
+
+        with patch("core.commands.generate_image") as mock_gen:
+            with patch("core.commands.ai_chat") as mock_ai:
+                self._cmds.handle_voice(m)
+        mock_gen.assert_called_once()
+        mock_ai.assert_not_called()
+
+    def test_voice_non_rysuj_routes_to_ai_chat(self):
+        self.bot.get_file.return_value = MagicMock()
+        self.bot.download_file.return_value = b"ogg_data"
+        mock_transcript = MagicMock()
+        mock_transcript.text = "what is the weather today"
+        self.groq.audio.transcriptions.create.return_value = mock_transcript
+
+        m = MagicMock()
+        m.voice.file_id = "fid"
+        m.chat.id = 1
+        m.message_thread_id = None
+        m.from_user.id = 1
+
+        with patch("core.commands.generate_image") as mock_gen:
+            with patch("core.commands.ai_chat") as mock_ai:
+                self._cmds.handle_voice(m)
+        mock_ai.assert_called_once()
+        mock_gen.assert_not_called()
+
+    def test_voice_rysuj_no_prompt_falls_through_to_ai_chat(self):
+        """'rysuj' with no following prompt falls through to ai_chat (AI can explain usage)."""
+        self.bot.get_file.return_value = MagicMock()
+        self.bot.download_file.return_value = b"ogg_data"
+        mock_transcript = MagicMock()
+        mock_transcript.text = "rysuj "
+        self.groq.audio.transcriptions.create.return_value = mock_transcript
+
+        m = MagicMock()
+        m.voice.file_id = "fid"
+        m.chat.id = 1
+        m.message_thread_id = None
+        m.from_user.id = 1
+
+        with patch("core.commands.generate_image") as mock_gen:
+            with patch("core.commands.ai_chat") as mock_ai:
+                self._cmds.handle_voice(m)
+        mock_ai.assert_called_once()
+        mock_gen.assert_not_called()
+
 
 class TestChangeModel(unittest.TestCase):
     def setUp(self):
