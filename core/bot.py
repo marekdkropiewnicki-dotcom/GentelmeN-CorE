@@ -14,7 +14,7 @@ TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GROQ_KEY = os.environ.get("GROQ_KEY")
 DB_URL = os.environ.get("DATABASE_URL")
 
-# Fix #6: fail fast when required environment variables are absent
+# Fail fast when required environment variables are absent
 if not TOKEN:
     raise RuntimeError("Required environment variable TELEGRAM_TOKEN is not set.")
 if not GROQ_KEY:
@@ -35,7 +35,6 @@ except Exception as e:
 
 init_db()
 register_handlers(bot, groq_client, kucoin)
-
 
 def price_monitor():
     while True:
@@ -83,5 +82,11 @@ threading.Thread(target=price_monitor, daemon=True).start()
 
 print("🚀 Bot się uruchamia... Czekam na zamknięcie starych procesów Railway...")
 time.sleep(5)
-print("✅ GentelmeN@CorE Online!")
-bot.infinity_polling(timeout=60, long_polling_timeout=60)
+print("✅ GeNCorE Online!")
+
+while True:
+    try:
+        bot.infinity_polling(timeout=60, long_polling_timeout=60)
+    except Exception as e:
+        print(f"⚠️ Polling crash: {e} — restarting in 5s...")
+        time.sleep(5)
