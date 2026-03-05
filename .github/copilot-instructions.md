@@ -21,6 +21,19 @@
 - **Device**: iPhone (iOS)
 - **All development and Copilot sessions are conducted on iOS** — keep this in mind when suggesting workflows, tools or commands.
 
+## Active Subscriptions (relevant to GeNCorE)
+
+All services used by GeNCorE are on paid plans:
+
+| Serwis | Plan | Użycie w bocie |
+|--------|------|----------------|
+| **Groq** | Pro | AI chat (`llama`, `qwen`) + Whisper (transkrypcja głosu) |
+| **Hugging Face** | Pro | Generowanie obrazów (`/rysuj`) — FLUX.1-schnell |
+| **Railway** | Pro | Deployment + hosting |
+| **Telegram** | Pro + Biznes | Platforma bota |
+| **KuCoin** | Level 1 (zweryfikowany) | Krypto — ceny i alerty (`/krypto`) |
+| **Brave** | Pro | Wyszukiwanie (`/szukaj`) via Brave Search API |
+
 ## Naming Convention
 
 The canonical project name is **GeNCorE**.
@@ -150,3 +163,4 @@ python -m pytest tests/ -v
 - **PR #6 zmergowany** — fix na produkcji, deployment `e0f01c1f` działa
 - **Przetestowano**: bot odpowiada na pytania o kryptowaluty bez crashu ✅
 - Bot stabilny na koniec sesji ✅
+- Dodano sekcję Active Subscriptions: Groq Pro, HF Pro, Railway Pro, Telegram Pro+Biznes, KuCoin L1, Brave Pro
