@@ -97,6 +97,7 @@ pip install -r requirements.txt
 - **No secrets in code**: Read every credential from `os.environ.get(...)`.
 - **Background threads**: Long-running tasks (e.g. price monitor) run as daemon threads so they don't block bot shutdown.
 - **Access control**: `/balance` and other sensitive commands check `OWNER_USER_ID` before executing.
+- **AI replies**: Do NOT use `parse_mode="Markdown"` in `ai_chat()` — Groq responses contain unescaped Markdown that causes Telegram 400 errors.
 
 ## Adding New Commands
 
@@ -144,4 +145,6 @@ python -m pytest tests/ -v
 - **Railway crash diagnosed**: Error 409 Conflict — two bot instances running simultaneously during redeploy
 - **Fix applied**: `time.sleep(5)` → `time.sleep(15)` at startup; `infinity_polling` wrapped in `while True` + `try/except`
 - Crash cause confirmed: Railway overlap between old and new deployment instances
-- Awaiting confirmation that fix resolves the 409 error
+- **DATABASE_URL fix**: zmieniono z `{{Postgres.DATABASE_URL}}` na `${{Postgres.DATABASE_URL}}` — `$` jest wymagane!
+- **AI chat crash fix**: usunięto `parse_mode="Markdown"` z `ai_chat()` w `core/commands.py` — Groq zwraca niesformatowany Markdown który łamie Telegram API (error 400: can't parse entities)
+- Bot działa poprawnie po tych fixach ✅
