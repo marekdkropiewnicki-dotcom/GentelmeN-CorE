@@ -1,5 +1,9 @@
 # Copilot Instructions for GentelmeN-CorE
 
+## Project Vision
+
+> *"Suwerenna AI bez ograniczeń, elokwentna bez zbędnej narracji, czysty kod w symbiozie wzajemnego oddziaływania."*
+
 ## Project Overview
 
 **GeNCorE** is a Telegram bot written in Python. It provides:
@@ -12,6 +16,11 @@
 - Per-user language (EN/PL) and model preferences stored in PostgreSQL
 - `/balance` command restricted to OWNER only (via `OWNER_USER_ID` env variable)
 
+## Development Environment
+
+- **Device**: iPhone (iOS)
+- **All development and Copilot sessions are conducted on iOS** — keep this in mind when suggesting workflows, tools or commands.
+
 ## Naming Convention
 
 The canonical project name is **GeNCorE**.
@@ -21,12 +30,20 @@ Do NOT use: `GentelmeN-CorE`, `GentelmeN@CorE`, `GentelmenCore`, `Gentlemen_CorE
 ## Repository Structure
 
 ```
-bot.py           # Main bot entry point (all logic lives here)
+bot.py           # Entry point — redirects to core/bot.py via runpy
 railway.json     # Railway deployment config (runs `python bot.py`)
 requirements.txt # Python dependencies
-configs/         # Configuration files
-core/            # Core modules
-tests/           # Tests
+configs/
+  example.env    # Template for all environment variables
+core/
+  __init__.py    # Empty
+  bot.py         # Bot startup + price monitor thread
+  commands.py    # All Telegram command handlers
+  database.py    # PostgreSQL operations
+  helpers.py     # inteligentna_odpowiedz() helper
+  integrations.py # Brave Search + HF image generation
+tests/
+  test_commands.py # pytest unit tests
 .github/
   copilot-instructions.md
 ```
@@ -64,6 +81,7 @@ All secrets are loaded from environment variables — never hard-code them:
 - `groq` — Groq SDK for AI and transcription
 - `ccxt` — Cryptocurrency exchange library (KuCoin)
 - `psycopg2-binary` — PostgreSQL adapter
+- `pytest` — unit testing
 
 Install with:
 ```bash
@@ -92,10 +110,26 @@ pip install -r requirements.txt
 
 - **HF image generation** (`/rysuj`): Returns 410 error — model FLUX.1-schnell may have changed endpoint. Needs new HF model or updated API call.
 - **Voice → /rysuj**: Voice messages are not being forwarded to image generation handler. Bug to fix.
+- **App crash on Railway**: App crashed (2026-03-05) — cause under investigation.
+
+## Pending Work
+
+- [ ] Fix `/rysuj` — find working HF model / updated endpoint
+- [ ] Fix voice → `/rysuj` forwarding bug
+- [ ] Investigate and fix Railway crash
+- [ ] Rename all `GentelmeN@CorE` references in code to `GeNCorE`
+- [ ] Review and merge 4 pending Copilot branches:
+  - `copilot/add-multilanguage-support` (es, de, fr, ru, uk, zh)
+  - `copilot/fix-authorization-database-leaks`
+  - `copilot/refactor-bot-file-into-modules`
+  - `copilot/set-up-copilot-instructions`
 
 ## Testing
 
-There is no automated test suite in the repository. Manual testing is done by running the bot against a real Telegram bot token. When adding significant logic, consider adding unit tests using `pytest` (which is not yet a listed dependency — add it to `requirements.txt` if tests are introduced).
+Run tests with:
+```bash
+python -m pytest tests/ -v
+```
 
 ## Session History
 
@@ -104,4 +138,8 @@ There is no automated test suite in the repository. Manual testing is done by ru
 - Identified HF 410 error on `/rysuj` (image generation)
 - Identified voice message → `/rysuj` bug
 - Added `.github/copilot-instructions.md` as Copilot memory
-- Established canonical project name: **GeNCorE** (replaces all variants like GentelmeN-CorE, GentelmeN@CorE, GentelmenCore etc.).
+- Established canonical project name: **GeNCorE**
+- Full repo audit completed (all files reviewed)
+- App crashed on Railway — cause unknown, under investigation
+- Added Project Vision to this file
+- Added Development Environment note: working on iPhone (iOS)
