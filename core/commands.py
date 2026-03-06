@@ -147,7 +147,7 @@ def welcome(m):
     update_user_db(m.from_user.id, m.from_user.username, lang='EN', model='llama-3.3-70b-versatile')
     user_history[m.from_user.id] = []
     msg = (
-        "Welcome to GentelmeN@CorE! 🎩\n\n"
+        "Welcome to GeNCorE! 🎩\n\n"
         "🛠️ **System:**\n"
         "/en | /pl - Język AI\n"
         "/llama | /fast | /qwen - Mózg AI\n"
@@ -290,7 +290,15 @@ def handle_voice(m):
             m.message_thread_id,
         )
         m.text = user_text
-        ai_chat(m)
+        # Route drawing requests to the image generator
+        lowered = user_text.lower().strip()
+        if lowered.startswith("rysuj ") or lowered.startswith("/rysuj "):
+            parts = user_text.split(None, 1)
+            prompt = parts[1].strip() if len(parts) > 1 else ''
+            m.text = f"/rysuj {prompt}"
+            generate_image(m)
+        else:
+            ai_chat(m)
     except Exception as e:
         inteligentna_odpowiedz(_bot, m.chat.id, f"Błąd głosu: {str(e)}", m.message_thread_id)
     finally:
@@ -304,9 +312,9 @@ def ai_chat(m):
     user_lang, user_model = get_user_data(user_id)
 
     sys_msg = (
-        "Jesteś GentelmeN@CorE. Mów po polsku."
+        "Jesteś GeNCorE. Mów po polsku."
         if user_lang == 'PL'
-        else "You are GentelmeN@CorE. Speak English."
+        else "You are GeNCorE. Speak English."
     )
 
     if any(w in m.text.lower() for w in ["cena", "news", "bitcoin", "kurs", "price"]):
