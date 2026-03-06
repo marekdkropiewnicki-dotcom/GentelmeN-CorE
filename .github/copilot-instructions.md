@@ -44,8 +44,7 @@ Do NOT use: `GentelmeN-CorE`, `GentelmeN@CorE`, `GentelmenCore`, `Gentlemen_CorE
 
 ```
 bot.py           # Entry point — redirects to core/bot.py via runpy
-railway.json     # Railway deployment config (runs `python bot.py`)
-requirements.txt # Python dependencies
+railway.json     # Railway deployment config (runs `python bot.py`)equirements.txt # Python dependencies
 configs/
   example.env    # Template for all environment variables
 core/
@@ -53,7 +52,7 @@ core/
   bot.py         # Bot startup + price monitor thread
   commands.py    # All Telegram command handlers
   database.py    # PostgreSQL operations
-  helpers.py     # inteligentna_odpowiedz() helper
+  helpers.py    # inteligentna_odpowiedz() helper
   integrations.py # Brave Search + HF image generation
 tests/
   test_commands.py # pytest unit tests
@@ -120,6 +119,13 @@ pip install -r requirements.txt
 4. Add the new command to the `/start` welcome message.
 5. Handle all exceptions and reply with a clear error.
 
+## Znane ograniczenia (Copilot API)
+
+- **Draft PR → Ready for review** — nie można przez API (GraphQL only); wymaga ręcznie na iOS/web
+- **Usuwanie plików** — niemożliwe przez GitHub Write API; wymaga ręcznie
+- **Merge draftu** — blokowany przez GitHub API (405 Pull Request is still a draft); najpierw oznaczyć jako ready
+- **CI/CD checks** — brak dostępu do statusu jobów przez dostępne API
+
 ## Known Issues (as of 2026-03-05)
 
 - **HF image generation** (`/rysuj`): Returns 410 error — model FLUX.1-schnell may have changed endpoint. Needs new HF model or updated API call.
@@ -145,6 +151,10 @@ python -m pytest tests/ -v
 ```
 
 ## Session History
+
+### 2026-03-06
+- PR #7 zmergowany — Fix GeNCorE naming, HF 410 error, voice→/rysuj routing ✅
+- Dodano sekcję `## Znane ograniczenia` — dokumentacja limitów Copilot API
 
 ### 2026-03-05
 - Added `OWNER_USER_ID` env variable in Railway to restrict `/balance` to owner only
