@@ -18,7 +18,7 @@
 
 ## Development Environment
 
-- **Device**: iPhone (iOS)
+- **Device**: iPhone (iOS) — przeglądarka: Brave
 - **All development and Copilot sessions are conducted on iOS** — keep this in mind when suggesting workflows, tools or commands.
 
 ## Active Subscriptions (relevant to GeNCorE)
@@ -44,7 +44,8 @@ Do NOT use: `GentelmeN-CorE`, `GentelmeN@CorE`, `GentelmenCore`, `Gentlemen_CorE
 
 ```
 bot.py           # Entry point — redirects to core/bot.py via runpy
-railway.json     # Railway deployment config (runs `python bot.py`)equirements.txt # Python dependencies
+railway.json     # Railway deployment config (runs `python bot.py`)
+requirements.txt # Python dependencies
 configs/
   example.env    # Template for all environment variables
 core/
@@ -52,7 +53,7 @@ core/
   bot.py         # Bot startup + price monitor thread
   commands.py    # All Telegram command handlers
   database.py    # PostgreSQL operations
-  helpers.py    # inteligentna_odpowiedz() helper
+  helpers.py     # inteligentna_odpowiedz() helper
   integrations.py # Brave Search + HF image generation
 tests/
   test_commands.py # pytest unit tests
@@ -121,10 +122,14 @@ pip install -r requirements.txt
 
 ## Znane ograniczenia (Copilot API)
 
-- **Draft PR → Ready for review** — nie można przez API (GraphQL only); wymaga ręcznie na iOS/web
-- **Usuwanie plików** — niemożliwe przez GitHub Write API; wymaga ręcznie
-- **Merge draftu** — blokowany przez GitHub API (405 Pull Request is still a draft); najpierw oznaczyć jako ready
+- **Draft PR → Ready for review** — nie można przez API (GraphQL only)
+  - ✅ Alternatywa: GitHub app (iOS) → PR → Convert to ready
+- **Usuwanie plików** — niemożliwe przez GitHub Write API
+  - ✅ Alternatywa: zastąp plik pustym + commit `chore: remove`
+- **Merge draftu** — blokowany przez GitHub API (405 Pull Request is still a draft)
+  - ✅ Alternatywa: najpierw Ready for review (patrz wyżej), potem merge
 - **CI/CD checks** — brak dostępu do statusu jobów przez dostępne API
+  - ✅ Alternatywa: sprawdź w GitHub app (iOS)
 
 ## Known Issues (as of 2026-03-05)
 
@@ -155,6 +160,8 @@ python -m pytest tests/ -v
 ### 2026-03-06
 - PR #7 zmergowany — Fix GeNCorE naming, HF 410 error, voice→/rysuj routing ✅
 - Dodano sekcję `## Znane ograniczenia` — dokumentacja limitów Copilot API
+- Dodano alternatywy do każdego ograniczenia ✅
+- Zaktualizowano Development Environment: przeglądarka Brave (iOS)
 
 ### 2026-03-05
 - Added `OWNER_USER_ID` env variable in Railway to restrict `/balance` to owner only
