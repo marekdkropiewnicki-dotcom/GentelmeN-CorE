@@ -1,5 +1,6 @@
 import os
 import tempfile
+from datetime import datetime
 
 import psycopg2
 import requests
@@ -290,7 +291,6 @@ def handle_voice(m):
             m.message_thread_id,
         )
         m.text = user_text
-        # Route drawing requests to the image generator
         lowered = user_text.lower().strip()
         if lowered.startswith("rysuj ") or lowered.startswith("/rysuj "):
             parts = user_text.split(None, 1)
@@ -312,9 +312,9 @@ def ai_chat(m):
     user_lang, user_model = get_user_data(user_id)
 
     sys_msg = (
-        "Jesteś GeNCorE. Mów po polsku."
+        f"Jesteś GeNCorE. Mów po polsku. Dzisiaj jest {datetime.now().strftime('%d.%m.%Y')}."
         if user_lang == 'PL'
-        else "You are GeNCorE. Speak English."
+        else f"You are GeNCorE. Speak English. Today is {datetime.now().strftime('%Y-%m-%d')}."
     )
 
     if any(w in m.text.lower() for w in ["cena", "news", "bitcoin", "kurs", "price"]):
