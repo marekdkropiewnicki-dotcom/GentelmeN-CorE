@@ -11,24 +11,20 @@
 | 📅 **Data** | 2026-04-01 |
 | 📱 **Urządzenie** | iPhone 16 — tylko iOS |
 | 🌿 **Branch** | `GentelmeN@CorE` |
-| 🟢 **Stan** | Zsynchronizowane |
+| 🟢 **Stan** | Stabilny — produkcja działa |
 
-### 🔴 Aktywne bugi
+### ✅ Bugi — rozwiązane
 
-| # | Bug |
-|---|---|
-| 1 | `/rysuj` — 410 error (kod używa SDXL zamiast FLUX.1-schnell) |
-| 2 | Voice → `/rysuj` routing nie działa |
+| # | Bug | Status |
+|---|---|---|
+| 1 | `/rysuj` — 410 error (SDXL → FLUX.1-schnell) | ✅ Naprawiony `ac1f084` |
+| 2 | Voice → `/rysuj` routing | ✅ Działało — zweryfikowane |
 
-### 🌿 Branche do review/merge
+### 🌿 Branche
 
-| Branch | Co robi |
-|---|---|
-| `copilot/add-multilanguage-support` | es, de, fr, ru, uk, zh |
-| `copilot/fix-authorization-database-leaks` | bezpieczeństwo DB |
-| `copilot/fix-markdown-parse-error` | fix błędu Markdown |
-| `copilot/refactor-bot-file-into-modules` | refaktor struktury |
-| `copilot/set-up-copilot-instructions` | setup instrukcji |
+Wszystkie 5 branchy `copilot/*` — **do usunięcia przez Marka w GitHub UI**.
+Kod ze wszystkich branchy już jest w `GentelmeN@CorE`. ✅
+👉 https://github.com/marekdkropiewnicki-dotcom/GentelmeN-CorE/branches
 
 ---
 
@@ -142,6 +138,7 @@ Wszystkie referencje w kodzie, komentarzach i dokumentacji muszą używać `GeNC
 | Draft PR → Ready for review | GitHub app (iOS) → PR → Convert to ready |
 | Usuwanie plików | Zastąp pustym plikiem + commit `chore: remove` |
 | Merge draftu | Najpierw Ready for review, potem merge |
+| Usuwanie branchy | GitHub UI → Branches → 🗑️ |
 | CI/CD checks | Sprawdź w GitHub app (iOS) |
 
 ---
@@ -150,37 +147,27 @@ Wszystkie referencje w kodzie, komentarzach i dokumentacji muszą używać `GeNC
 
 ### 2026-03-05
 - `OWNER_USER_ID` dodany w Railway — `/balance` zabezpieczony ✅
-- HF 410 error na `/rysuj` zidentyfikowany ❌
-- Bug voice → `/rysuj` zidentyfikowany ❌
-- `copilot-instructions.md` stworzony jako pamięć Copilota ✅
-- Kanoniczna nazwa projektu: **GeNCorE** ✅
-- Pełny audyt repo przeprowadzony ✅
-- Railway 409 Conflict zdiagnozowany i naprawiony ✅
+- `copilot-instructions.md` stworzony ✅
+- Kanoniczna nazwa: **GeNCorE** ✅
+- Railway 409 Conflict naprawiony ✅
 - `DATABASE_URL` fix: `${{Postgres.DATABASE_URL}}` ✅
 - `parse_mode="Markdown"` usunięty z `ai_chat()` ✅
-- PR #6 zmergowany — bot stabilny na produkcji ✅
+- PR #6 zmergowany — bot stabilny ✅
 
 ### 2026-03-06
 - PR #7 zmergowany — naming, HF 410, voice routing ✅
-- Sekcja `Znane ograniczenia` dodana ✅
-- Development environment zaktualizowany: przeglądarka Brave (iOS) ✅
 
 ### 2026-03-09
 - Repo upublicznione ✅
-- 5 pustych WIP PRów (#8–#12) zamkniętych ✅
-- Copilot premium limit wyczerpany — agenci zatrzymani ✅
-- Wizja: GeNCorE → suwerenna AI (RAG, orkiestracja, autonomia) 🎯
+- 5 pustych WIP PRów zamkniętych ✅
+- Copilot premium limit wyczerpany ✅
 
 ### 2026-03-13
 - PR #14 (Codex) zmergowany — performance fixes ✅
-- Fix #1: autoryzacja `/balance` via `OWNER_USER_ID` ✅
-- Fix #4: `handle_voice` — NamedTemporaryFile + finally ✅
-- Fix #5: obsługa `/komenda@BotName` w grupach ✅
-- Fix #8: flaga `has_assets` w `/balance` ✅
 
 ### 2026-04-01
-- Premium requests zresetowane — 100% dostępne ✅
-- Pełny sync projektu przeprowadzony ✅
-- Oba pliki copilot-instructions.md zaktualizowane i zsynchronizowane ✅
-- Aktywne bugi: `/rysuj` (SDXL→FLUX.1-schnell) + voice→/rysuj routing ❌
-- 5 branchy Copilot czeka na review/merge ⏳
+- Premium requests zresetowane — 100% ✅
+- Bug #1 `/rysuj` naprawiony: SDXL → FLUX.1-schnell (`ac1f084`) ✅
+- Bug #2 voice→/rysuj — zweryfikowany, już działał ✅
+- 5 branchy `copilot/*` — do usunięcia przez Marka (GitHub UI) ⏳
+- GeNCorE stabilny — focus przechodzi na `claude-remote-control` 🎯
