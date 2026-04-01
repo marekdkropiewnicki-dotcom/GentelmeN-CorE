@@ -1,183 +1,186 @@
-# Copilot Instructions for GentelmeN-CorE
-
-## Project Vision
+# Copilot Instructions for GeNCorE
 
 > *"Suwerenna AI bez ograniczeń, elokwentna bez zbędnej narracji, czysty kod w symbiozie wzajemnego oddziaływania."*
 
-## Project Overview
+---
 
-**GeNCorE** is a Telegram bot written in Python. It provides:
-- AI chat powered by [Groq](https://groq.com/) (models: `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `qwen-2.5-32b`)
-- Voice message transcription via Groq Whisper
-- Cryptocurrency price checks and price-alert monitoring via KuCoin (ccxt)
-- Web search via Brave Search API
-- GitHub repository search
-- AI image generation via Hugging Face Inference API (FLUX.1-schnell)
-- Per-user language (EN/PL) and model preferences stored in PostgreSQL
-- `/balance` command restricted to OWNER only (via `OWNER_USER_ID` env variable)
+## ⚡ @sync — Szybki status
 
-## Development Environment
+| | |
+|---|---|
+| 📅 **Data** | 2026-04-01 |
+| 📱 **Urządzenie** | iPhone 16 — tylko iOS |
+| 🌿 **Branch** | `GentelmeN@CorE` |
+| 🟢 **Stan** | Zsynchronizowane |
 
-- **Device**: iPhone (iOS) — przeglądarka: Brave
-- **All development and Copilot sessions are conducted on iOS** — keep this in mind when suggesting workflows, tools or commands.
+### 🔴 Aktywne bugi
 
-## Active Subscriptions (relevant to GeNCorE)
+| # | Bug |
+|---|---|
+| 1 | `/rysuj` — 410 error (kod używa SDXL zamiast FLUX.1-schnell) |
+| 2 | Voice → `/rysuj` routing nie działa |
 
-All services used by GeNCorE are on paid plans:
+### 🌿 Branche do review/merge
 
-| Serwis | Plan | Użycie w bocie |
-|--------|------|----------------|
-| **Groq** | Pro | AI chat (`llama`, `qwen`) + Whisper (transkrypcja głosu) |
-| **Hugging Face** | Pro | Generowanie obrazów (`/rysuj`) — FLUX.1-schnell |
-| **Railway** | Pro | Deployment + hosting |
-| **Telegram** | Pro + Biznes | Platforma bota |
-| **KuCoin** | Level 1 (zweryfikowany) | Krypto — ceny i alerty (`/krypto`) |
-| **Brave** | Pro | Wyszukiwanie (`/szukaj`) via Brave Search API |
+| Branch | Co robi |
+|---|---|
+| `copilot/add-multilanguage-support` | es, de, fr, ru, uk, zh |
+| `copilot/fix-authorization-database-leaks` | bezpieczeństwo DB |
+| `copilot/fix-markdown-parse-error` | fix błędu Markdown |
+| `copilot/refactor-bot-file-into-modules` | refaktor struktury |
+| `copilot/set-up-copilot-instructions` | setup instrukcji |
 
-## Naming Convention
+---
 
-The canonical project name is **GeNCorE**.
-All references in code, messages, comments and documentation must use `GeNCorE`.
-Do NOT use: `GentelmeN-CorE`, `GentelmeN@CorE`, `GentelmenCore`, `Gentlemen_CorE`, `GentelmeN_CorE` etc.
+## 🚀 Project Overview
 
-## Repository Structure
+**GeNCorE** — Telegram bot napisany w Pythonie. Deployment na Railway.
+
+| Komponent | Technologia |
+|---|---|
+| AI chat | Groq (`llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `qwen-2.5-32b`) |
+| Transkrypcja głosu | Groq Whisper |
+| Generowanie obrazów | Hugging Face (FLUX.1-schnell) |
+| Kryptowaluty | KuCoin via `ccxt` |
+| Wyszukiwanie | Brave Search API |
+| GitHub search | GitHub REST API |
+| Baza danych | PostgreSQL via `psycopg2` |
+| Deployment | Railway Pro |
+
+---
+
+## 🗂️ Struktura repo
 
 ```
-bot.py           # Entry point — redirects to core/bot.py via runpy
-railway.json     # Railway deployment config (runs `python bot.py`)
-requirements.txt # Python dependencies
+bot.py                        # Entry point — uruchamia core/bot.py via runpy
+railway.json                  # Railway deployment config
+requirements.txt              # Zależności Python
 configs/
-  example.env    # Template for all environment variables
+  example.env                 # Szablon zmiennych środowiskowych
 core/
-  __init__.py    # Empty
-  bot.py         # Bot startup + price monitor thread
-  commands.py    # All Telegram command handlers
-  database.py    # PostgreSQL operations
-  helpers.py     # inteligentna_odpowiedz() helper
-  integrations.py # Brave Search + HF image generation
+  __init__.py
+  bot.py                      # Startup bota + wątek monitora cen
+  commands.py                 # Wszystkie handlery komend Telegram
+  database.py                 # Operacje PostgreSQL
+  helpers.py                  # inteligentna_odpowiedz()
+  integrations.py             # Brave Search + HF image generation
 tests/
-  test_commands.py # pytest unit tests
+  test_commands.py            # Testy pytest
 .github/
-  copilot-instructions.md
+  copilot-instructions.md     # Ten plik
 ```
 
-## Running the Bot
+---
 
-```bash
-python bot.py
-```
+## 🔑 Zmienne środowiskowe
 
-Deployment is managed by [Railway](https://railway.com). The start command is `python bot.py`.
+| Zmienna | Cel |
+|---|---|
+| `TELEGRAM_TOKEN` | Telegram Bot API token |
+| `GROQ_KEY` | Groq API — AI chat + Whisper |
+| `BRAVE_API_KEY` | Brave Search API |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `HF_TOKEN` | Hugging Face — generowanie obrazów |
+| `GITHUB_TOKEN` | GitHub API — wyszukiwanie repo |
+| `KUCOIN_API_KEY` | KuCoin API key |
+| `KUCOIN_SECRET` | KuCoin secret |
+| `KUCOIN_PASSWORD` | KuCoin passphrase |
+| `ADMIN_ID` | Telegram user ID admina |
+| `OWNER_USER_ID` | Telegram user ID właściciela (dla `/balance`) |
 
-## Environment Variables
+> Nigdy nie hardkoduj sekretów — zawsze `os.environ.get(...)`.
 
-All secrets are loaded from environment variables — never hard-code them:
+---
 
-| Variable            | Purpose                                      |
-|---------------------|----------------------------------------------|
-| `TELEGRAM_TOKEN`    | Telegram Bot API token                       |
-| `GROQ_KEY`          | Groq API key for AI chat & transcription     |
-| `BRAVE_API_KEY`     | Brave Search API key                         |
-| `DATABASE_URL`      | PostgreSQL connection string                 |
-| `HF_TOKEN`          | Hugging Face API token for image generation  |
-| `GITHUB_TOKEN`      | GitHub API token for repository search       |
-| `KUCOIN_API_KEY`    | KuCoin exchange API key                      |
-| `KUCOIN_SECRET`     | KuCoin exchange secret                       |
-| `KUCOIN_PASSWORD`   | KuCoin exchange passphrase                   |
-| `ADMIN_ID`          | Telegram user ID of the bot admin            |
-| `OWNER_USER_ID`     | Telegram user ID of the owner (for /balance) |
+## 📦 Zależności (`requirements.txt`)
 
-## Dependencies (`requirements.txt`)
+| Pakiet | Cel |
+|---|---|
+| `pyTelegramBotAPI` | Framework Telegram bota |
+| `requests` | HTTP client |
+| `groq` | Groq SDK — AI chat + transkrypcja |
+| `ccxt` | KuCoin exchange |
+| `psycopg2-binary` | PostgreSQL adapter |
+| `pytest` | Testy jednostkowe |
 
-- `pyTelegramBotAPI` — Telegram bot framework
-- `requests` — HTTP client
-- `groq` — Groq SDK for AI and transcription
-- `ccxt` — Cryptocurrency exchange library (KuCoin)
-- `psycopg2-binary` — PostgreSQL adapter
-- `pytest` — unit testing
+---
 
-Install with:
-```bash
-pip install -r requirements.txt
-```
+## 🏷️ Naming Convention
 
-## Code Conventions
+Kanoniczna nazwa projektu to **GeNCorE**.
+Wszystkie referencje w kodzie, komentarzach i dokumentacji muszą używać `GeNCorE`.
+❌ Nie używaj: `GentelmeN-CorE`, `GentelmeN@CorE`, `GentelmenCore`, `Gentlemen_CorE` itp.
 
-- **Language**: Python 3; bot messages can be Polish or English depending on user preference.
-- **Error handling**: Wrap all external API/DB calls in `try/except` and reply with a user-friendly error message — never let exceptions bubble up to the bot framework.
-- **Database**: Use PostgreSQL via `psycopg2`. Always use parameterised queries (`%s` placeholders). Gracefully skip DB operations when `DATABASE_URL` is not set.
-- **Telegram replies**: Use `inteligentna_odpowiedz()` helper for all outgoing messages so that Telegram Supergroup thread IDs (`message_thread_id`) are handled correctly.
-- **No secrets in code**: Read every credential from `os.environ.get(...)`.
-- **Background threads**: Long-running tasks (e.g. price monitor) run as daemon threads so they don't block bot shutdown.
-- **Access control**: `/balance` and other sensitive commands check `OWNER_USER_ID` before executing.
-- **AI replies**: Do NOT use `parse_mode="Markdown"` in `ai_chat()` — Groq responses contain unescaped Markdown that causes Telegram 400 errors.
+---
 
-## Adding New Commands
+## 📐 Code Conventions
 
-1. Decorate a handler with `@bot.message_handler(commands=['your_command'])`.
-2. Parse arguments from `m.text`.
-3. Use `inteligentna_odpowiedz(m.chat.id, ..., m.message_thread_id)` to send replies.
-4. Add the new command to the `/start` welcome message.
-5. Handle all exceptions and reply with a clear error.
+- **Python 3** — komunikaty bota w PL lub EN zależnie od preferencji użytkownika
+- **Error handling** — każde wywołanie API/DB owijaj w `try/except`, odpowiadaj user-friendly
+- **Baza danych** — `psycopg2`, zawsze parametryzowane zapytania (`%s`), graceful skip gdy brak `DATABASE_URL`
+- **Odpowiedzi** — używaj `inteligentna_odpowiedz()` dla wszystkich wiadomości wychodzących
+- **Sekrety** — tylko `os.environ.get(...)`
+- **Wątki** — długie zadania (monitor cen) jako daemon threads
+- **AI chat** — NIE używaj `parse_mode="Markdown"` w `ai_chat()` — Groq zwraca niesformatowany Markdown który łamie Telegram API (error 400)
 
-## Znane ograniczenia (Copilot API)
+---
 
-- **Draft PR → Ready for review** — nie można przez API (GraphQL only)
-  - ✅ Alternatywa: GitHub app (iOS) → PR → Convert to ready
-- **Usuwanie plików** — niemożliwe przez GitHub Write API
-  - ✅ Alternatywa: zastąp plik pustym + commit `chore: remove`
-- **Merge draftu** — blokowany przez GitHub API (405 Pull Request is still a draft)
-  - ✅ Alternatywa: najpierw Ready for review (patrz wyżej), potem merge
-- **CI/CD checks** — brak dostępu do statusu jobów przez dostępne API
-  - ✅ Alternatywa: sprawdź w GitHub app (iOS)
+## ➕ Dodawanie nowych komend
 
-## Known Issues (as of 2026-03-05)
+1. Handler: `@bot.message_handler(commands=['komenda'])`
+2. Parsuj argumenty z `m.text`
+3. Odpowiedzi przez `inteligentna_odpowiedz(_bot, m.chat.id, ..., m.message_thread_id)`
+4. Dodaj komendę do wiadomości `/start`
+5. Obsłuż wszystkie wyjątki
 
-- **HF image generation** (`/rysuj`): Returns 410 error — model FLUX.1-schnell may have changed endpoint. Needs new HF model or updated API call.
-- **Voice → /rysuj**: Voice messages are not being forwarded to image generation handler. Bug to fix.
-- **Railway 409 Conflict**: Fixed — was caused by Railway starting new instance before old one stopped. Fix: `time.sleep(15)` at startup + `while True` loop around `infinity_polling`.
+---
 
-## Pending Work
+## ⚠️ Znane ograniczenia (Copilot API)
 
-- [ ] Fix `/rysuj` — find working HF model / updated endpoint
-- [ ] Fix voice → `/rysuj` forwarding bug
-- [ ] Rename all `GentelmeN@CorE` references in code to `GeNCorE`
-- [ ] Review and merge 4 pending Copilot branches:
-  - `copilot/add-multilanguage-support` (es, de, fr, ru, uk, zh)
-  - `copilot/fix-authorization-database-leaks`
-  - `copilot/refactor-bot-file-into-modules`
-  - `copilot/set-up-copilot-instructions`
+| Ograniczenie | Alternatywa |
+|---|---|
+| Draft PR → Ready for review | GitHub app (iOS) → PR → Convert to ready |
+| Usuwanie plików | Zastąp pustym plikiem + commit `chore: remove` |
+| Merge draftu | Najpierw Ready for review, potem merge |
+| CI/CD checks | Sprawdź w GitHub app (iOS) |
 
-## Testing
+---
 
-Run tests with:
-```bash
-python -m pytest tests/ -v
-```
-
-## Session History
-
-### 2026-03-06
-- PR #7 zmergowany — Fix GeNCorE naming, HF 410 error, voice→/rysuj routing ✅
-- Dodano sekcję `## Znane ograniczenia` — dokumentacja limitów Copilot API
-- Dodano alternatywy do każdego ograniczenia ✅
-- Zaktualizowano Development Environment: przeglądarka Brave (iOS)
+## 📋 Session History
 
 ### 2026-03-05
-- Added `OWNER_USER_ID` env variable in Railway to restrict `/balance` to owner only
-- Identified HF 410 error on `/rysuj` (image generation)
-- Identified voice message → `/rysuj` bug
-- Added `.github/copilot-instructions.md` as Copilot memory
-- Established canonical project name: **GeNCorE**
-- Full repo audit completed (all files reviewed)
-- Added Project Vision to this file
-- Added Development Environment note: working on iPhone (iOS)
-- **Railway crash diagnosed**: Error 409 Conflict — two bot instances running simultaneously during redeploy
-- **Fix applied**: `time.sleep(5)` → `time.sleep(15)` at startup; `infinity_polling` wrapped in `while True` + `try/except`
-- Crash cause confirmed: Railway overlap between old and new deployment instances
-- **DATABASE_URL fix**: zmieniono z `{{Postgres.DATABASE_URL}}` na `${{Postgres.DATABASE_URL}}` — `$` jest wymagane!
-- **AI chat crash fix**: usunięto `parse_mode="Markdown"` z `ai_chat()` w `core/commands.py` — Groq zwraca niesformatowany Markdown który łamie Telegram API (error 400: can't parse entities)
-- **PR #6 zmergowany** — fix na produkcji, deployment `e0f01c1f` działa
-- **Przetestowano**: bot odpowiada na pytania o kryptowaluty bez crashu ✅
-- Bot stabilny na koniec sesji ✅
-- Dodano sekcję Active Subscriptions: Groq Pro, HF Pro, Railway Pro, Telegram Pro+Biznes, KuCoin L1, Brave Pro
+- `OWNER_USER_ID` dodany w Railway — `/balance` zabezpieczony ✅
+- HF 410 error na `/rysuj` zidentyfikowany ❌
+- Bug voice → `/rysuj` zidentyfikowany ❌
+- `copilot-instructions.md` stworzony jako pamięć Copilota ✅
+- Kanoniczna nazwa projektu: **GeNCorE** ✅
+- Pełny audyt repo przeprowadzony ✅
+- Railway 409 Conflict zdiagnozowany i naprawiony ✅
+- `DATABASE_URL` fix: `${{Postgres.DATABASE_URL}}` ✅
+- `parse_mode="Markdown"` usunięty z `ai_chat()` ✅
+- PR #6 zmergowany — bot stabilny na produkcji ✅
+
+### 2026-03-06
+- PR #7 zmergowany — naming, HF 410, voice routing ✅
+- Sekcja `Znane ograniczenia` dodana ✅
+- Development environment zaktualizowany: przeglądarka Brave (iOS) ✅
+
+### 2026-03-09
+- Repo upublicznione ✅
+- 5 pustych WIP PRów (#8–#12) zamkniętych ✅
+- Copilot premium limit wyczerpany — agenci zatrzymani ✅
+- Wizja: GeNCorE → suwerenna AI (RAG, orkiestracja, autonomia) 🎯
+
+### 2026-03-13
+- PR #14 (Codex) zmergowany — performance fixes ✅
+- Fix #1: autoryzacja `/balance` via `OWNER_USER_ID` ✅
+- Fix #4: `handle_voice` — NamedTemporaryFile + finally ✅
+- Fix #5: obsługa `/komenda@BotName` w grupach ✅
+- Fix #8: flaga `has_assets` w `/balance` ✅
+
+### 2026-04-01
+- Premium requests zresetowane — 100% dostępne ✅
+- Pełny sync projektu przeprowadzony ✅
+- Oba pliki copilot-instructions.md zaktualizowane i zsynchronizowane ✅
+- Aktywne bugi: `/rysuj` (SDXL→FLUX.1-schnell) + voice→/rysuj routing ❌
+- 5 branchy Copilot czeka na review/merge ⏳
