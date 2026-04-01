@@ -13,17 +13,26 @@
 | 🌿 **Branch** | `GentelmeN@CorE` |
 | 🟢 **Stan** | Stabilny — produkcja działa |
 
-### ✅ Bugi — rozwiązane
+---
 
-| # | Bug | Status |
-|---|---|---|
-| 1 | `/rysuj` — 410 error (SDXL → FLUX.1-schnell) | ✅ Naprawiony `ac1f084` |
-| 2 | Voice → `/rysuj` routing | ✅ Działało — zweryfikowane |
+## 🗺️ Ekosystem
 
-### 🌿 Branche
+```
+iPhone
+├── GitHub app → Copilot Chat
+│   └── repo: marekdkropiewnicki-dotcom/cli (fork cli/cli, Go)
+├── Shellfish → gh cli + copilot CLI
+│   └── repo: marekdkropiewnicki-dotcom/GentelmeN-CorE (Python) ← jesteś tu
+└── Telegram → GeNCorE bot (Railway, produkcja)
+```
 
-- Tylko 1 branch: `GentelmeN@CorE` ✅
-- 5 branchy `copilot/*` → ✅ Usunięte przez Marka (2026-04-01)
+### Repozytoria
+
+| Repo | Język | Branch | Rola |
+|---|---|---|---|
+| `marekdkropiewnicki-dotcom/cli` | Go | `trunk` | Workspace Copilota na iOS |
+| `marekdkropiewnicki-dotcom/GentelmeN-CorE` | Python | `GentelmeN@CorE` | Telegram bot (prod) |
+| `github/copilot-cli` | — | `main` | Oficjalny Copilot CLI |
 
 ---
 
@@ -118,14 +127,24 @@ Kanoniczna nazwa projektu to **GeNCorE**.
 
 ---
 
-## ⚠️ Znane ograniczenia (Copilot API)
+## ⚠️ Ograniczenia Copilot API (iOS)
 
 | Ograniczenie | Alternatywa |
 |---|---|
-| Draft PR → Ready for review | GitHub app (iOS) → PR → Convert to ready |
+| Draft PR → Ready for review | GitHub app → PR → Convert to ready |
 | Usuwanie plików | Zastąp pustym plikiem + commit `chore: remove` |
 | Merge draftu | Najpierw Ready for review, potem merge |
 | Usuwanie branchy | GitHub UI → Branches → 🗑️ |
+| Błędy zapisu (serwer) | Poczekaj chwilę i spróbuj ponownie |
+
+---
+
+## ✅ Bugi — rozwiązane
+
+| # | Bug | Status |
+|---|---|---|
+| 1 | `/rysuj` — 410 error (SDXL → FLUX.1-schnell) | ✅ Naprawiony `ac1f084` |
+| 2 | Voice → `/rysuj` routing | ✅ Działało — zweryfikowane |
 
 ---
 
@@ -151,5 +170,6 @@ Kanoniczna nazwa projektu to **GeNCorE**.
 - Bug #1 `/rysuj` naprawiony: SDXL → FLUX.1-schnell (`ac1f084`) ✅
 - Bug #2 voice→/rysuj — zweryfikowany, już działał ✅
 - 5 branchy `copilot/*` → ✅ Usunięte przez Marka
-- GeNCorE skrupulatnie przejrzany: 1 branch ✅, 0 otwartych PRów ✅, ostatni commit `259f6bb` ✅
 - GeNCorE stabilny — focus przechodzi na `claude-remote-control` 🎯
+- Ekosystem zmapowany: cli + GeNCorE + copilot-cli ✅
+- Instrukcje posprzątane i uporządkowane ✅
