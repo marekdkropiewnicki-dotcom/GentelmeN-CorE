@@ -22,9 +22,8 @@
 
 ### 🌿 Branche
 
-Wszystkie 5 branchy `copilot/*` — **do usunięcia przez Marka w GitHub UI**.
-Kod ze wszystkich branchy już jest w `GentelmeN@CorE`. ✅
-👉 https://github.com/marekdkropiewnicki-dotcom/GentelmeN-CorE/branches
+- Tylko 1 branch: `GentelmeN@CorE` ✅
+- 5 branchy `copilot/*` → ✅ Usunięte przez Marka (2026-04-01)
 
 ---
 
@@ -48,7 +47,7 @@ Kod ze wszystkich branchy już jest w `GentelmeN@CorE`. ✅
 ## 🗂️ Struktura repo
 
 ```
-bot.py                        # Entry point — uruchamia core/bot.py via runpy
+bot.py                        # Entry point
 railway.json                  # Railway deployment config
 requirements.txt              # Zależności Python
 configs/
@@ -88,7 +87,7 @@ tests/
 
 ---
 
-## 📦 Zależności (`requirements.txt`)
+## 📦 Zależności
 
 | Pakiet | Cel |
 |---|---|
@@ -104,30 +103,18 @@ tests/
 ## 🏷️ Naming Convention
 
 Kanoniczna nazwa projektu to **GeNCorE**.
-Wszystkie referencje w kodzie, komentarzach i dokumentacji muszą używać `GeNCorE`.
 ❌ Nie używaj: `GentelmeN-CorE`, `GentelmeN@CorE`, `GentelmenCore`, `Gentlemen_CorE` itp.
 
 ---
 
 ## 📐 Code Conventions
 
-- **Python 3** — komunikaty bota w PL lub EN zależnie od preferencji użytkownika
-- **Error handling** — każde wywołanie API/DB owijaj w `try/except`, odpowiadaj user-friendly
-- **Baza danych** — `psycopg2`, zawsze parametryzowane zapytania (`%s`), graceful skip gdy brak `DATABASE_URL`
-- **Odpowiedzi** — używaj `inteligentna_odpowiedz()` dla wszystkich wiadomości wychodzących
+- **Python 3** — komunikaty bota w PL lub EN
+- **Error handling** — każde wywołanie API/DB owijaj w `try/except`
+- **Baza danych** — zawsze parametryzowane zapytania (`%s`)
+- **Odpowiedzi** — używaj `inteligentna_odpowiedz()`
 - **Sekrety** — tylko `os.environ.get(...)`
-- **Wątki** — długie zadania (monitor cen) jako daemon threads
-- **AI chat** — NIE używaj `parse_mode="Markdown"` w `ai_chat()` — Groq zwraca niesformatowany Markdown który łamie Telegram API (error 400)
-
----
-
-## ➕ Dodawanie nowych komend
-
-1. Handler: `@bot.message_handler(commands=['komenda'])`
-2. Parsuj argumenty z `m.text`
-3. Odpowiedzi przez `inteligentna_odpowiedz(_bot, m.chat.id, ..., m.message_thread_id)`
-4. Dodaj komendę do wiadomości `/start`
-5. Obsłuż wszystkie wyjątki
+- **AI chat** — NIE używaj `parse_mode="Markdown"` w `ai_chat()`
 
 ---
 
@@ -139,19 +126,14 @@ Wszystkie referencje w kodzie, komentarzach i dokumentacji muszą używać `GeNC
 | Usuwanie plików | Zastąp pustym plikiem + commit `chore: remove` |
 | Merge draftu | Najpierw Ready for review, potem merge |
 | Usuwanie branchy | GitHub UI → Branches → 🗑️ |
-| CI/CD checks | Sprawdź w GitHub app (iOS) |
 
 ---
 
 ## 📋 Session History
 
 ### 2026-03-05
-- `OWNER_USER_ID` dodany w Railway — `/balance` zabezpieczony ✅
 - `copilot-instructions.md` stworzony ✅
 - Kanoniczna nazwa: **GeNCorE** ✅
-- Railway 409 Conflict naprawiony ✅
-- `DATABASE_URL` fix: `${{Postgres.DATABASE_URL}}` ✅
-- `parse_mode="Markdown"` usunięty z `ai_chat()` ✅
 - PR #6 zmergowany — bot stabilny ✅
 
 ### 2026-03-06
@@ -160,7 +142,6 @@ Wszystkie referencje w kodzie, komentarzach i dokumentacji muszą używać `GeNC
 ### 2026-03-09
 - Repo upublicznione ✅
 - 5 pustych WIP PRów zamkniętych ✅
-- Copilot premium limit wyczerpany ✅
 
 ### 2026-03-13
 - PR #14 (Codex) zmergowany — performance fixes ✅
@@ -169,5 +150,6 @@ Wszystkie referencje w kodzie, komentarzach i dokumentacji muszą używać `GeNC
 - Premium requests zresetowane — 100% ✅
 - Bug #1 `/rysuj` naprawiony: SDXL → FLUX.1-schnell (`ac1f084`) ✅
 - Bug #2 voice→/rysuj — zweryfikowany, już działał ✅
-- 5 branchy `copilot/*` — do usunięcia przez Marka (GitHub UI) ⏳
+- 5 branchy `copilot/*` → ✅ Usunięte przez Marka
+- GeNCorE skrupulatnie przejrzany: 1 branch ✅, 0 otwartych PRów ✅, ostatni commit `259f6bb` ✅
 - GeNCorE stabilny — focus przechodzi na `claude-remote-control` 🎯
