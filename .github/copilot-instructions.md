@@ -4,18 +4,31 @@
 
 ---
 
+## ⚡ @sync — Definicja
+
+Gdy użytkownik wpisze `@sync`, Copilot musi:
+1. Wczytać ten plik (`copilot-instructions.md`)
+2. Odpowiedzieć pełnym statusem:
+   - Data i branch
+   - Stan produkcji (Railway)
+   - Aktywne bugi / otwarte PRy
+   - Następny krok
+3. Przypomnieć o nierozwiązanym TODO: **migracja bota na Hetzner** (szczegóły utracone — do odbudowania)
+
+---
+
 ## ⚡ @sync — Szybki status
 
 | | |
 |---|---|
-| 📅 **Data** | 2026-04-04 |
-| 📱 **Urządzenie** | iPhone 16 — tylko iOS |
-| 🌿 **Branch** | `GentelmeN@CorE` |
-| 🟢 **Stan** | Stabilny — produkcja działa |
+| **Data** | 2026-04-04 |
+| **Urządzenie** | iPhone 16 — tylko iOS |
+| **Branch** | `GentelmeN@CorE` |
+| **Stan** | Stabilny — produkcja działa |
 
 ---
 
-## 🗺️ Ekosystem
+## Ekosystem
 
 ```
 iPhone
@@ -36,7 +49,7 @@ iPhone
 
 ---
 
-## 🚀 Project Overview
+## Project Overview
 
 **GeNCorE** — Telegram bot napisany w Pythonie. Deployment na Railway.
 
@@ -53,7 +66,7 @@ iPhone
 
 ---
 
-## 🗂️ Struktura repo
+## Struktura repo
 
 ```
 bot.py                        # Entry point
@@ -76,7 +89,7 @@ tests/
 
 ---
 
-## 🔧 Kluczowe fixy — core/commands.py
+## Kluczowe fixy — core/commands.py
 
 | Fix | Funkcja | Opis |
 |---|---|---|
@@ -89,7 +102,7 @@ tests/
 
 ---
 
-## 🔑 Zmienne środowiskowe
+## Zmienne środowiskowe
 
 | Zmienna | Cel |
 |---|---|
@@ -109,7 +122,7 @@ tests/
 
 ---
 
-## 📦 Zależności
+## Zależności
 
 | Pakiet | Cel |
 |---|---|
@@ -122,14 +135,14 @@ tests/
 
 ---
 
-## 🏷️ Naming Convention
+## Naming Convention
 
 Kanoniczna nazwa projektu to **GeNCorE**.
-❌ Nie używaj: `GentelmeN-CorE`, `GentelmeN@CorE`, `GentelmenCore`, `Gentlemen_CorE` itp.
+Nie używaj: `GentelmeN-CorE`, `GentelmeN@CorE`, `GentlemenCore`, `Gentlemen_CorE` itp.
 
 ---
 
-## 📐 Code Conventions
+## Code Conventions
 
 - **Python 3** — komunikaty bota w PL lub EN
 - **Error handling** — każde wywołanie API/DB owijaj w `try/except`
@@ -140,59 +153,67 @@ Kanoniczna nazwa projektu to **GeNCorE**.
 
 ---
 
-## ⚠️ Ograniczenia Copilot API (iOS)
+## Ograniczenia Copilot API (iOS)
 
 | Ograniczenie | Alternatywa |
 |---|---|
 | Draft PR → Ready for review | GitHub app → PR → Convert to ready |
 | Usuwanie plików | Zastąp pustym plikiem + commit `chore: remove` |
 | Merge draftu | Najpierw Ready for review, potem merge |
-| Usuwanie branchy | GitHub UI → Branches → 🗑️ |
+| Usuwanie branchy | GitHub UI → Branches |
 | Błędy zapisu (serwer) | Poczekaj chwilę i spróbuj ponownie |
 
 ---
 
-## ✅ Bugi — rozwiązane
+## Bugi — rozwiązane
 
 | # | Bug | Status |
 |---|---|---|
-| 1 | `/rysuj` — 410 error (SDXL → FLUX.1-schnell) | ✅ Naprawiony `ac1f084` |
-| 2 | Voice → `/rysuj` routing | ✅ Działało — zweryfikowane |
+| 1 | `/rysuj` — 410 error (SDXL → FLUX.1-schnell) | Naprawiony `ac1f084` |
+| 2 | Voice → `/rysuj` routing | Działało — zweryfikowane |
 
 ---
 
-## 📋 Session History
+## TODO — nierozwiązane
+
+| # | Zadanie | Status |
+|---|---|---|
+| 1 | Migracja bota na Hetzner (zamiast Railway) | Szczegóły utracone — do odbudowania |
+
+---
+
+## Session History
 
 ### 2026-03-05
-- `copilot-instructions.md` stworzony ✅
-- Kanoniczna nazwa: **GeNCorE** ✅
-- PR #6 zmergowany — bot stabilny ✅
+- `copilot-instructions.md` stworzony
+- Kanoniczna nazwa: **GeNCorE**
+- PR #6 zmergowany — bot stabilny
 
 ### 2026-03-06
-- PR #7 zmergowany — naming, HF 410, voice routing ✅
+- PR #7 zmergowany — naming, HF 410, voice routing
 
 ### 2026-03-09
-- Repo upublicznione ✅
-- 5 pustych WIP PRów zamkniętych ✅
+- Repo upublicznione
+- 5 pustych WIP PRów zamkniętych
 
 ### 2026-03-13
-- PR #14 (Codex) zmergowany — performance fixes ✅
+- PR #14 (Codex) zmergowany — performance fixes
 
 ### 2026-04-01
-- Premium requests zresetowane — 100% ✅
-- Bug #1 `/rysuj` naprawiony: SDXL → FLUX.1-schnell (`ac1f084`) ✅
-- Bug #2 voice→/rysuj — zweryfikowany, już działał ✅
-- 5 branchy `copilot/*` → ✅ Usunięte przez Marka
-- GeNCorE stabilny — focus przechodzi na `claude-remote-control` 🎯
-- Ekosystem zmapowany: cli + GeNCorE + copilot-cli ✅
-- Instrukcje posprzątane i uporządkowane ✅
+- Premium requests zresetowane — 100%
+- Bug #1 `/rysuj` naprawiony: SDXL → FLUX.1-schnell (`ac1f084`)
+- Bug #2 voice→/rysuj — zweryfikowany, już działał
+- 5 branchy `copilot/*` usunięte przez Marka
+- GeNCorE stabilny — focus przechodzi na `claude-remote-control`
+- Ekosystem zmapowany: cli + GeNCorE + copilot-cli
+- Instrukcje posprzątane i uporządkowane
 
 ### 2026-04-04
-- Repo `cli` przypadkowo usunięte i odtworzone jako nowy fork ✅
-- `copilot-instructions.md` dodany do repo `cli` ✅
-- `core/commands.py` wczytany do pamięci Copilota ✅
-- Sekcja `🔧 Kluczowe fixy` dodana do instrukcji ✅
-- Pamięć przywrócona — ekosystem zsynchronizowany ✅
-- `claude-remote-control` — 2 otwarte issues do sprawdzenia 🎯
-
-### Commit message: docs: sync copilot-instructions from cli/trunk
+- Repo `cli` przypadkowo usunięte i odtworzone jako nowy fork
+- `copilot-instructions.md` dodany do repo `cli`
+- `core/commands.py` wczytany do pamięci Copilota
+- Sekcja `Kluczowe fixy` dodana do instrukcji
+- Pamięć przywrócona — ekosystem zsynchronizowany
+- `claude-remote-control` — 2 otwarte PRy do sprawdzenia
+- Definicja `@sync` dodana do instrukcji
+- TODO: migracja na Hetzner — szczegóły utracone, do odbudowania
