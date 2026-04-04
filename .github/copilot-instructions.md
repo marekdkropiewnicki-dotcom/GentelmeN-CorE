@@ -8,7 +8,7 @@
 
 | | |
 |---|---|
-| 📅 **Data** | 2026-04-01 |
+| 📅 **Data** | 2026-04-04 |
 | 📱 **Urządzenie** | iPhone 16 — tylko iOS |
 | 🌿 **Branch** | `GentelmeN@CorE` |
 | 🟢 **Stan** | Stabilny — produkcja działa |
@@ -73,6 +73,19 @@ tests/
 .github/
   copilot-instructions.md     # Ten plik
 ```
+
+---
+
+## 🔧 Kluczowe fixy — core/commands.py
+
+| Fix | Funkcja | Opis |
+|---|---|---|
+| #1 | `check_balance` | Używa `OWNER_USER_ID` z env zamiast hardkodowanego username |
+| #4 | `handle_voice` | `NamedTemporaryFile` + `finally` — gwarantuje cleanup pliku |
+| #5 | `change_model`, `explicit_search`, `generate_image` | `split('@')[0]` — komendy działają w grupach |
+| #8 | `check_balance` | `has_assets` boolean zamiast `len(text)` |
+
+> `ai_chat()` — NIE używa `parse_mode="Markdown"` (powoduje błędy przy specjalnych znakach).
 
 ---
 
@@ -173,3 +186,13 @@ Kanoniczna nazwa projektu to **GeNCorE**.
 - GeNCorE stabilny — focus przechodzi na `claude-remote-control` 🎯
 - Ekosystem zmapowany: cli + GeNCorE + copilot-cli ✅
 - Instrukcje posprzątane i uporządkowane ✅
+
+### 2026-04-04
+- Repo `cli` przypadkowo usunięte i odtworzone jako nowy fork ✅
+- `copilot-instructions.md` dodany do repo `cli` ✅
+- `core/commands.py` wczytany do pamięci Copilota ✅
+- Sekcja `🔧 Kluczowe fixy` dodana do instrukcji ✅
+- Pamięć przywrócona — ekosystem zsynchronizowany ✅
+- `claude-remote-control` — 2 otwarte issues do sprawdzenia 🎯
+
+### Commit message: docs: sync copilot-instructions from cli/trunk
