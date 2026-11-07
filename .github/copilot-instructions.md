@@ -62,6 +62,7 @@ iPhone
 | Wyszukiwanie | Brave Search API |
 | GitHub search | GitHub REST API |
 | Baza danych | PostgreSQL via `psycopg2` |
+| Analityka | Mixpanel — server-side, opt-in, region UE (`AGENTS.md`) |
 | Deployment | Railway Pro |
 
 ---
@@ -76,13 +77,18 @@ configs/
   example.env                 # Szablon zmiennych środowiskowych
 core/
   __init__.py
+  analytics.py                # Mixpanel — zgoda (opt-in), wysyłka w tle
   bot.py                      # Startup bota + wątek monitora cen
   commands.py                 # Wszystkie handlery komend Telegram
   database.py                 # Operacje PostgreSQL
   helpers.py                  # inteligentna_odpowiedz()
   integrations.py             # Brave Search + HF image generation
 tests/
+  test_analytics.py           # Testy analityki i zgody
   test_commands.py            # Testy pytest
+docs/
+  analytics/tracking-plan.md  # Plan śledzenia Mixpanel
+AGENTS.md                     # Zasady analityki dla agentów AI
 .github/
   copilot-instructions.md     # Ten plik
 ```
@@ -117,6 +123,8 @@ tests/
 | `KUCOIN_PASSWORD` | KuCoin passphrase |
 | `ADMIN_ID` | Telegram user ID admina |
 | `OWNER_USER_ID` | Telegram user ID właściciela (dla `/balance`) |
+| `MIXPANEL_TOKEN` | Token projektu Mixpanel (brak = analityka wyłączona) |
+| `MIXPANEL_API_HOST` | Region Mixpanel, domyślnie `api-eu.mixpanel.com` |
 
 > Nigdy nie hardkoduj sekretów — zawsze `os.environ.get(...)`.
 
@@ -131,6 +139,7 @@ tests/
 | `groq` | Groq SDK — AI chat + transkrypcja |
 | `ccxt` | KuCoin exchange |
 | `psycopg2-binary` | PostgreSQL adapter |
+| `mixpanel` | Analityka produktowa (server-side) |
 | `pytest` | Testy jednostkowe |
 
 ---
@@ -150,6 +159,7 @@ Nie używaj: `GentelmeN-CorE`, `GentelmeN@CorE`, `GentlemenCore`, `Gentlemen_Cor
 - **Odpowiedzi** — używaj `inteligentna_odpowiedz()`
 - **Sekrety** — tylko `os.environ.get(...)`
 - **AI chat** — NIE używaj `parse_mode="Markdown"` w `ai_chat()`
+- **Analityka** — tylko przez `core.analytics.track_user_event()`, który sprawdza zgodę; nigdy treść wiadomości ani Telegram ID (zasady: `AGENTS.md`)
 
 ---
 
