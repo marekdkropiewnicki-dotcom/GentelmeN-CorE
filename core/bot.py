@@ -7,6 +7,7 @@ import psycopg2
 import telebot
 from groq import Groq
 
+from core.analytics import api_host, init_analytics
 from core.commands import register_handlers
 from core.database import init_db
 
@@ -34,6 +35,10 @@ except Exception as e:
     kucoin = None
 
 init_db()
+if init_analytics():
+    print(f"📊 Mixpanel włączony ({api_host()}) — tylko dla użytkowników ze zgodą.")
+else:
+    print("📊 Mixpanel wyłączony (brak MIXPANEL_TOKEN).")
 register_handlers(bot, groq_client, kucoin)
 
 def price_monitor():

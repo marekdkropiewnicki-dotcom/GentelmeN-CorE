@@ -1,11 +1,21 @@
+import logging
 import os
+import re
 import tempfile
 from datetime import datetime
 
 import psycopg2
 import requests
+from telebot import types
 
-from core.database import get_user_data, update_user_db
+from core import analytics
+from core.database import (
+    get_analytics_consent,
+    get_user_data,
+    set_analytics_consent,
+    update_user_db,
+    user_exists,
+)
 from core.helpers import inteligentna_odpowiedz
 from core.integrations import generate_image_hf, search_brave
 
@@ -18,6 +28,140 @@ MAX_HISTORY = 40
 _bot = None
 _groq_client = None
 _kucoin = None
+
+
+# ==========================================
+# ANALYTICS CONSENT (Mixpanel, opt-in)
+# ==========================================
+
+ANALYTICS_CALLBACK_PREFIX = "analytics:"
+# Telegram deep-link payloads (t.me/<bot>?start=<payload>) allow only these characters
+_START_PAYLOAD_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+# user_id -> referral payload from /start, kept until the user answers the consent prompt
+_pending_referrals = {}
+
+DATA_SCOPE_TEXT = (
+    "Zapisujemy, z których funkcji korzystasz, pod losowym identyfikatorem. "
+    "Nie zapisujemy treści wiadomości, nazwy użytkownika ani Twojego ID z Telegrama."
+)
+CONSENT_PROMPT = (
+    "📊 Pomóż ulepszać GeNCorE\n\n"
+    "Czy zgadzasz się na statystyki użycia w Mixpanel? " + DATA_SCOPE_TEXT + "\n\n"
+    "Zgodę zmienisz w każdej chwili: /analityka\n\n"
+    "🇬🇧 Usage statistics, never message content. Change anytime: /analytics"
+)
+CONSENT_GRANTED_TEXT = "✅ Dziękuję! Statystyki użycia są włączone. Wyłączysz je komendą /analityka."
+CONSENT_DECLINED_TEXT = "👍 Rozumiem. Statystyki użycia są wyłączone. Zmienisz to komendą /analityka."
+ANALYTICS_DISABLED_TEXT = "📊 Statystyki użycia nie są włączone na tym serwerze."
+
+
+def _chat_type(message):
+    chat_type = getattr(getattr(message, "chat", None), "type", None)
+    return chat_type if isinstance(chat_type, str) else "unknown"
+
+
+def _input_type(message):
+    return "voice" if getattr(message, "gencore_input_type", None) == "voice" else "text"
+
+
+def _start_payload(text):
+    parts = (text if isinstance(text, str) else "").split(maxsplit=1)
+    if len(parts) < 2:
+        return None
+    payload = parts[1].strip()
+    return payload if _START_PAYLOAD_RE.fullmatch(payload) else None
+
+
+def _consent_keyboard(user_id, origin):
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.row(
+        types.InlineKeyboardButton(
+            "✅ Zgadzam się", callback_data=f"{ANALYTICS_CALLBACK_PREFIX}yes:{user_id}:{origin}"
+        ),
+        types.InlineKeyboardButton(
+            "❌ Nie, dziękuję", callback_data=f"{ANALYTICS_CALLBACK_PREFIX}no:{user_id}:{origin}"
+        ),
+    )
+    return keyboard
+
+
+def _maybe_ask_analytics_consent(m, is_new_user):
+    """Ask once, after /start, only when analytics is configured and the user never decided."""
+    if not analytics.is_enabled():
+        return
+    user_id = m.from_user.id
+    consent, _ = get_analytics_consent(user_id)
+    if consent is not None:
+        return
+    if is_new_user:
+        referral = _start_payload(m.text)
+        if referral:
+            _pending_referrals[user_id] = referral
+    origin = "signup" if is_new_user else "start"
+    inteligentna_odpowiedz(
+        _bot, m.chat.id, CONSENT_PROMPT, m.message_thread_id,
+        reply_markup=_consent_keyboard(user_id, origin),
+    )
+
+
+def analytics_settings(m):
+    if not analytics.is_enabled():
+        return inteligentna_odpowiedz(_bot, m.chat.id, ANALYTICS_DISABLED_TEXT, m.message_thread_id)
+    consent, _ = get_analytics_consent(m.from_user.id)
+    status = {True: "włączone ✅", False: "wyłączone ❌"}.get(consent, "nie wybrano")
+    inteligentna_odpowiedz(
+        _bot, m.chat.id,
+        f"📊 Statystyki użycia: {status}\n\n{DATA_SCOPE_TEXT}",
+        m.message_thread_id,
+        reply_markup=_consent_keyboard(m.from_user.id, "settings"),
+    )
+
+
+def _answer_callback(call, text=None):
+    try:
+        _bot.answer_callback_query(call.id, text)
+    except Exception as e:
+        logging.warning(f"Callback answer failed: {e}")
+
+
+def handle_analytics_consent(call):
+    try:
+        _, choice, target, origin = call.data.split(":")
+        target_id = int(target)
+    except (AttributeError, TypeError, ValueError):
+        return _answer_callback(call)
+    if call.from_user.id != target_id:
+        return _answer_callback(call, "To pytanie jest do innej osoby.")
+
+    granted = choice == "yes"
+    previous_consent, _ = get_analytics_consent(target_id)
+    analytics_id, previous_id = set_analytics_consent(
+        target_id, call.from_user.username, granted
+    )
+    referral = _pending_referrals.pop(target_id, None)
+    if granted:
+        language, model = get_user_data(target_id)
+        analytics.record_consent_granted(
+            analytics_id,
+            language=str(language).lower(),
+            model=model,
+            chat_type=_chat_type(call.message),
+            # Sign-up fires only for a new user's first decision, never on re-clicks
+            is_signup=origin == "signup" and previous_consent is None,
+            referral_source=referral,
+        )
+    elif previous_id:
+        analytics.record_consent_revoked(previous_id)
+
+    _answer_callback(call, "✅" if granted else "👍")
+    try:
+        _bot.edit_message_text(
+            CONSENT_GRANTED_TEXT if granted else CONSENT_DECLINED_TEXT,
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+        )
+    except Exception as e:
+        logging.warning(f"Consent message edit failed: {e}")
 
 
 # ==========================================
@@ -145,6 +289,8 @@ def check_balance(m):
 # ==========================================
 
 def welcome(m):
+    # Checked before the upsert below, so a first /start counts as a sign-up
+    is_new_user = analytics.is_enabled() and not user_exists(m.from_user.id)
     update_user_db(m.from_user.id, m.from_user.username, lang='EN', model='llama-3.3-70b-versatile')
     user_history[m.from_user.id] = []
     msg = (
@@ -164,6 +310,7 @@ def welcome(m):
         "/balance - Portfel KuCoin"
     )
     inteligentna_odpowiedz(_bot, m.chat.id, msg, m.message_thread_id, parse_mode="Markdown")
+    _maybe_ask_analytics_consent(m, is_new_user)
 
 
 def reset_memory(m):
@@ -291,6 +438,7 @@ def handle_voice(m):
             m.message_thread_id,
         )
         m.text = user_text
+        m.gencore_input_type = "voice"  # analytics: input_type property
         lowered = user_text.lower().strip()
         if lowered.startswith("rysuj ") or lowered.startswith("/rysuj "):
             parts = user_text.split(None, 1)
@@ -317,6 +465,7 @@ def ai_chat(m):
         else f"You are GeNCorE. Speak English. Today is {datetime.now().strftime('%Y-%m-%d')}."
     )
 
+    web_info = ""
     if any(w in m.text.lower() for w in ["cena", "news", "bitcoin", "kurs", "price"]):
         web_info = search_brave(m.text, count=2)
         if web_info:
@@ -336,6 +485,16 @@ def ai_chat(m):
         if len(user_history[user_id]) > MAX_HISTORY:
             user_history[user_id] = user_history[user_id][-MAX_HISTORY:]
         inteligentna_odpowiedz(_bot, m.chat.id, reply, m.message_thread_id)
+        # Value Moment — tracked after the reply is delivered; never includes message content
+        analytics.track_user_event(user_id, "ai_reply_sent", {
+            "model": user_model,
+            "language": str(user_lang).lower(),
+            "input_type": _input_type(m),
+            "chat_type": _chat_type(m),
+            "is_web_context_used": bool(web_info),
+            "history_message_count": len(user_history[user_id]),
+            "reply_character_count": len(reply or ""),
+        })
     except Exception as e:
         inteligentna_odpowiedz(_bot, m.chat.id, f"❌ Błąd AI: {str(e)}", m.message_thread_id)
 
@@ -362,5 +521,9 @@ def register_handlers(bot, groq_client, kucoin):
     bot.message_handler(commands=['szukaj'])(explicit_search)
     bot.message_handler(commands=['github'])(github_search)
     bot.message_handler(commands=['rysuj'])(generate_image)
+    bot.message_handler(commands=['analityka', 'analytics'])(analytics_settings)
     bot.message_handler(content_types=['voice'])(handle_voice)
+    bot.callback_query_handler(
+        func=lambda c: (c.data or "").startswith(ANALYTICS_CALLBACK_PREFIX)
+    )(handle_analytics_consent)
     bot.message_handler(func=lambda m: True)(ai_chat)

@@ -3,4 +3,5 @@ requests
 groq
 ccxt
 psycopg2-binary
+mixpanel>=5.4
 pytest
